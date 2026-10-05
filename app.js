@@ -98,7 +98,6 @@ function evCard(ev, hl) {
         <div class="mut">${ev._ed || ev._custom ? esc(ev.place || '') : (ev.place || '')}</div>
         <div style="margin-top:4px">${ev._custom ? '<span class="bdg b-me">เพิ่มเอง</span>' : badge(ev.status)}${ev._ed ? ' <span class="bdg b-me">แก้เอง</span>' : ''}</div>
       </div>
-      <button class="edit" data-act="edit" data-v="${ev.id}" aria-label="แก้ไข">✏️</button>
     </div>
     ${ev._timeEd && !ev.official ? `<div class="mut" style="margin-top:6px">เวลาในแพลนตั้งต้น: ${ev._base.plan}</div>` : ''}
     ${ev.unote ? `<div class="off">📝 ${esc(ev.unote)}</div>` : ''}
