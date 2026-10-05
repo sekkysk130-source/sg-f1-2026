@@ -1,6 +1,6 @@
 /* ---------- state (เก็บในเครื่องเท่านั้น) ---------- */
 const KEY = 'f1sg.v1';
-const DEF = { done: {}, pack: {}, notes: {}, sim: null, day: null, sun: '', geoOn: false, ov: {}, custom: [],
+const DEF = { done: {}, pack: {}, notes: {}, sim: null, day: null, sun: '', geoOn: false, ov: {}, custom: [], pts: 0, code: '', topic: '', syncAt: 0, dirty: false,
   money: { cardType: '', rate: '26.25', cardTHB: '3000', cashTHB: '1000', cardSGD: '', cashSGD: '', est: {}, tx: [] } };
 let S = (() => { try { const j = JSON.parse(localStorage.getItem(KEY) || '{}'); return { ...DEF, ...j, money: { ...DEF.money, ...(j.money || {}) } }; } catch (e) { return JSON.parse(JSON.stringify(DEF)); } })();
 let storeOk = true;
@@ -211,12 +211,65 @@ function renderPlan() {
   $('#p-plan').innerHTML = `<div class="tabs">${DAYS.map(x => `<button class="btn ${x.id === id ? 'on' : ''}" data-act="day" data-v="${x.id}">${x.tab}</button>`).join('')}</div>
     <h2 style="margin-top:4px">${d.label}</h2><div class="mut">${d.title}</div>
     <div class="mut" style="margin-top:6px">${Object.keys(ST).map(k => badge(k)).join(' ')}</div>
-    <div class="row" style="margin-top:10px">${act('add', d.id, '➕ เพิ่มกิจกรรม', 'sm pri')}${act('share', '', '📤 ส่งแพลนให้อีกเครื่อง', 'sm')}${act('recv', '', '📥 รับแพลน', 'sm')}</div>
-    ${editCount() ? `<div class="off">✏️ แพลนในเครื่องนี้ถูกแก้เอง ${editCount()} จุด (เก็บในเครื่องนี้) ${act('resetall', '', 'คืนค่าแพลนตั้งต้นทั้งหมด', 'sm')}</div>` : ''}
+    <div class="row" style="margin-top:10px">${act('add', d.id, '➕ เพิ่มกิจกรรม', 'sm pri')}</div>
+    <div id="syncbox">${syncHtml()}</div>
+    ${editCount() ? `<div class="off">✏️ แพลนในเครื่องนี้ถูกแก้เอง ${editCount()} จุด ${S.topic ? '(ซิงก์กับอีกเครื่อง)' : '(เก็บในเครื่องนี้)'} ${act('resetall', '', 'คืนค่าแพลนตั้งต้นทั้งหมด', 'sm')}</div>` : ''}
     ${d.eff.map(it => it.t === 'rt' ? routeCard(it) : it.t === 'rest' ? restCard(it) : evCard(it, it.id === nextId)).join('')}
     ${d.hidden.length ? `<div class="card"><h3>🙈 กิจกรรมที่ซ่อนไว้ (ไม่ไป)</h3>${d.hidden.map(h => `<div class="tx"><div>${h.icon || ''} ${h._base.title}<div class="mut">${h._base.plan}</div></div><button class="btn sm" style="flex:0 0 auto" data-act="unhide" data-v="${h.id}">แสดงอีกครั้ง</button></div>`).join('')}</div>` : ''}`;
 }
 
+
+
+/* ---------- ซิงก์ 2 เครื่อง (แพลนที่แก้ + เช็กว่าทำแล้ว + ตัวเลือก A/B) ---------- */
+const NTFY = 'https://ntfy.sh/';
+let syncErr = '', needRender = false, syncBusy = false;
+const syncDoc = () => ({ v: 1, ts: S.pts, ov: S.ov, custom: S.custom, done: Object.fromEntries(Object.entries(S.done).filter(e => e[1])), sun: S.sun });
+function touch() { S.pts = Date.now(); S.dirty = true; save(); if (S.topic) syncNow(); }
+async function topicFor(code) { const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('f1sg-2026|' + code)); return 'f1sg26-' + [...new Uint8Array(h)].slice(0, 16).map(b => b.toString(16).padStart(2, '0')).join(''); }
+const newCode = () => { const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789', r = crypto.getRandomValues(new Uint8Array(6)); return [...r].map(x => A[x % A.length]).join(''); };
+async function pushSync() { const body = JSON.stringify(syncDoc()); if (new Blob([body]).size > 3900) { syncErr = 'แก้แพลนเยอะเกินกว่าจะซิงก์ได้ ลองลบโน้ตยาว ๆ ในกิจกรรม'; return false; } const r = await fetch(NTFY + S.topic, { method: 'POST', body }); if (!r.ok) throw new Error('push ' + r.status); S.dirty = false; return true; }
+function applyRemote(j) {
+  S.ov = j.ov || {}; S.custom = j.custom || []; S.done = j.done || {}; S.sun = j.sun || ''; S.pts = j.ts; S.dirty = false; save(); rebuild();
+  const typing = /INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '');
+  if ($('#sheet').classList.contains('on') || typing) needRender = true; else { const y = window.scrollY; R[page](); window.scrollTo(0, y); }
+}
+async function syncNow(manual) {
+  if (!S.topic || syncBusy) return; if (!navigator.onLine) { syncErr = 'ออฟไลน์อยู่ จะซิงก์เมื่อมีสัญญาณ'; drawSync(); return; }
+  syncBusy = true;
+  try {
+    const r = await fetch(NTFY + S.topic + '/json?poll=1&since=12h', { cache: 'no-store' }); if (!r.ok) throw new Error('poll ' + r.status);
+    let last = null; (await r.text()).split('\n').forEach(l => { try { const m = JSON.parse(l); if (m.event === 'message') { const j = JSON.parse(m.message); if (j && j.v === 1 && (!last || j.ts >= last.ts)) last = j; } } catch (e) { } });
+    if (last && last.ts > S.pts) applyRemote(last);
+    else if (S.pts && (!last || last.ts < S.pts || S.dirty)) await pushSync();
+    S.syncAt = Date.now(); syncErr = syncErr.startsWith('แก้แพลนเยอะ') ? syncErr : ''; save();
+  } catch (e) { syncErr = 'ซิงก์ไม่สำเร็จ (สัญญาณไม่ดี) จะลองใหม่เอง'; }
+  syncBusy = false; drawSync();
+  if (needRender && !$('#sheet').classList.contains('on') && !/INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '')) { needRender = false; const y = window.scrollY; R[page](); window.scrollTo(0, y); }
+}
+function syncHtml() {
+  if (!S.topic) return `<div class="card rest" style="border-left-color:var(--blu)"><b>🔗 ใช้ 2 เครื่อง?</b> <span class="mut">เชื่อมครั้งเดียว แล้วแพลนที่แก้กับเช็ก “ทำแล้ว” จะตามกันเอง</span><div class="row" style="margin-top:8px">${act('pair', '', '🔗 เชื่อม 2 เครื่อง', 'sm pri')}</div></div>`;
+  return `<div class="${syncErr ? 'warn' : 'off'}">🔗 ซิงก์ 2 เครื่องเปิดอยู่ · รหัส <b>${S.code}</b>${S.syncAt ? ` · ล่าสุด ${hm(S.syncAt)}` : ''}${syncErr ? `<br>⚠️ ${syncErr}` : ''} ${act('pair', '', 'ตั้งค่า', 'sm')}</div>`;
+}
+function drawSync() { const e = document.getElementById('syncbox'); if (e) e.innerHTML = syncHtml(); }
+function pairSheet() {
+  $('#sheet .in').innerHTML = S.topic ? `<div class="card"><h3>🔗 ซิงก์ 2 เครื่อง</h3><p>รหัสของทริปนี้</p><div class="big time" style="letter-spacing:.2em;text-align:center">${S.code}</div>
+      <p class="mut">อีกเครื่อง: เปิดเว็บ → หน้าแพลน → “เชื่อม 2 เครื่อง” → ใส่รหัสนี้ ทำครั้งเดียว</p>
+      <div class="row">${act('syncgo', '', '🔄 ซิงก์ตอนนี้', 'pri')}${act('unpair', '', 'เลิกเชื่อม', 'sm')}</div>
+      <p class="mut">สิ่งที่ตามกัน: กิจกรรมที่แก้/เพิ่ม/ซ่อน, เช็ก “ทำแล้ว”, ตัวเลือก A/B วันอาทิตย์ · สิ่งที่แยกต่อเครื่อง: โน้ต รายจ่าย ภาพ ของที่ต้องเตรียม ตำแหน่ง<br>เว็บเช็กทุก ~20 วินาทีตอนเปิดอยู่และมีเน็ต ถ้าสองเครื่องแก้พร้อมกัน เครื่องที่กดบันทึกทีหลังชนะ<br>ข้อมูลที่ซิงก์ส่งผ่านบริการ ntfy.sh และเก็บไว้ 12 ชั่วโมง ใครไม่รู้รหัสจะเข้าไม่ถึง</p></div>`
+    : `<div class="card"><h3>🔗 เชื่อม 2 เครื่อง</h3>
+      <p><b>เครื่องแรก</b> — กดสร้างรหัส แล้วบอกรหัสให้อีกคน</p><div class="row">${act('paircreate', '', '✨ สร้างรหัส', 'pri')}</div>
+      <hr style="border-color:var(--line);margin:16px 0">
+      <p><b>เครื่องที่สอง</b> — ใส่รหัสที่เครื่องแรกได้</p><input id="pair-code" placeholder="รหัส 6 ตัว" maxlength="6" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;letter-spacing:.2em;text-align:center;font-size:1.3rem">
+      <div class="row" style="margin-top:8px">${act('pairjoin', '', 'เชื่อม', 'pri')}</div>
+      <p class="mut">ต้องมีเน็ตตอนเชื่อม · ทำครั้งเดียวต่อเครื่อง · ถ้าใช้ทั้ง Safari และไอคอนบนหน้าจอโฮม ให้เชื่อมในตัวที่ใช้จริง</p></div>`;
+  $('#sheet').classList.add('on');
+}
+async function pairWith(code, creating) {
+  if (!navigator.onLine) { alert('ต้องมีอินเทอร์เน็ตตอนเชื่อม'); return; }
+  S.code = code; S.topic = await topicFor(code); if (creating && !S.pts) S.pts = Date.now(); S.dirty = creating; save();
+  await syncNow(); if (syncErr && !S.syncAt) { alert('เชื่อมไม่สำเร็จ ลองใหม่ตอนสัญญาณดี'); S.code = ''; S.topic = ''; save(); return; }
+  pairSheet(); if (page === 'plan') drawSync();
+}
 
 /* ---------- แก้ไขแพลน ---------- */
 function editSheet(id, day) {
@@ -233,13 +286,13 @@ function editSheet(id, day) {
     <label>โน้ต</label><textarea id="ed-note" placeholder="ไม่บังคับ">${esc(v.note)}</textarea>
     <div class="row" style="margin-top:12px">${act('edsave', id || '', '💾 บันทึก', 'pri')}</div>
     <div class="row" style="margin-top:8px">${isNew ? '' : cu ? act('eddel', id, '🗑️ ลบกิจกรรมนี้', 'sm') : act('edhide', id, '🙈 ไม่ไปกิจกรรมนี้ (ซ่อน)', 'sm') + (S.ov[id] ? act('edreset', id, '↩️ คืนค่าเดิม', 'sm') : '')}</div>
-    <p class="mut">บันทึกแล้วหน้าแพลนและการ์ด “ตอนนี้ / ถัดไป” เปลี่ยนตามทันที · เก็บในเครื่องนี้เท่านั้น อีกเครื่องจะเห็นเมื่อกด “ส่งแพลนให้อีกเครื่อง” · เวลาทางการของงานแข่งและคอนเสิร์ตไม่เปลี่ยนตามที่แก้</p></div>`;
+    <p class="mut">บันทึกแล้วหน้าแพลนและการ์ด “ตอนนี้ / ถัดไป” เปลี่ยนตามทันที · ถ้าเชื่อม 2 เครื่องไว้ อีกเครื่องจะเปลี่ยนตามเองภายในราว 20 วินาทีเมื่อมีเน็ต · เวลาทางการของงานแข่งและคอนเสิร์ตไม่เปลี่ยนตามที่แก้</p></div>`;
   $('#sheet').classList.add('on');
 }
-function afterEdit(dayId, id) { save(); rebuild(); closeSheet(); if (dayId) S.day = dayId; go('plan', true); if (id) scrollToEl('c-' + id); }
+function afterEdit(dayId, id) { touch(); rebuild(); closeSheet(); if (dayId) S.day = dayId; go('plan', true); if (id) scrollToEl('c-' + id); }
 const packPlan = () => btoa(unescape(encodeURIComponent(JSON.stringify({ v: 1, ov: S.ov, custom: S.custom })))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 function unpackPlan(txt) { try { let c = String(txt).trim(); const m = c.match(/plan=([A-Za-z0-9_-]+)/); if (m) c = m[1]; c = c.replace(/-/g, '+').replace(/_/g, '/'); const j = JSON.parse(decodeURIComponent(escape(atob(c)))); if (j && j.v === 1 && typeof j.ov === 'object' && Array.isArray(j.custom)) return j; } catch (e) { } return null; }
-function applyPlan(j) { S.ov = j.ov; S.custom = j.custom; save(); rebuild(); closeSheet(); go('plan'); }
+function applyPlan(j) { S.ov = j.ov; S.custom = j.custom; touch(); rebuild(); closeSheet(); go('plan'); }
 function shareSheet() {
   const link = location.origin + location.pathname + '#plan=' + packPlan();
   $('#sheet .in').innerHTML = `<div class="card"><h3>📤 ส่งแพลนให้อีกเครื่อง</h3>
@@ -460,7 +513,7 @@ document.addEventListener('click', async ev => {
   if (ev.target.id === 'sheet' || ev.target.closest('#sheet .x')) { closeSheet(); return; }
   const b = ev.target.closest('[data-act]'); if (!b) return;
   const a = b.dataset.act, v = b.dataset.v;
-  if (a === 'done') { S.done[v] = !S.done[v]; save(); const y = window.scrollY; R[page](); window.scrollTo(0, y); }
+  if (a === 'done') { S.done[v] = !S.done[v]; touch(); const y = window.scrollY; R[page](); window.scrollTo(0, y); }
   else if (a === 'pack') { S.pack[v] = !S.pack[v]; save(); b.classList.toggle('on'); }
   else if (a === 'day') { S.day = v; go('plan'); }
   else if (a === 'page') go(v);
@@ -482,7 +535,12 @@ document.addEventListener('click', async ev => {
   else if (a === 'edhide') { S.ov[v] = { hide: true }; afterEdit(); }
   else if (a === 'unhide' || a === 'edreset') { delete S.ov[v]; afterEdit(null, v); }
   else if (a === 'eddel') { S.custom = S.custom.filter(c => c.id !== v); delete S.done[v]; afterEdit(); }
-  else if (a === 'resetall') { if (confirm('คืนค่าแพลนตั้งต้นทั้งหมด? สิ่งที่แก้และกิจกรรมที่เพิ่มเองในเครื่องนี้จะหายไป')) { S.ov = {}; S.custom = []; afterEdit(); } }
+  else if (a === 'resetall') { if (confirm('คืนค่าแพลนตั้งต้นทั้งหมด? สิ่งที่แก้และกิจกรรมที่เพิ่มเองจะหายไป (ถ้าเชื่อม 2 เครื่องไว้ จะหายทั้งสองเครื่อง)')) { S.ov = {}; S.custom = []; afterEdit(); } }
+  else if (a === 'pair') pairSheet();
+  else if (a === 'paircreate') { b.disabled = true; await pairWith(newCode(), true); }
+  else if (a === 'pairjoin') { const c = $('#pair-code').value.trim().toUpperCase(); if (c.length !== 6) { $('#pair-code').focus(); return; } b.disabled = true; await pairWith(c, false); }
+  else if (a === 'syncgo') { await syncNow(true); pairSheet(); }
+  else if (a === 'unpair') { if (confirm('เลิกเชื่อมเครื่องนี้? แพลนในเครื่องยังอยู่ แต่จะไม่ตามอีกเครื่องแล้ว')) { S.code = ''; S.topic = ''; S.syncAt = 0; syncErr = ''; save(); closeSheet(); if (page === 'plan') renderPlan(); } }
   else if (a === 'share') shareSheet();
   else if (a === 'recv') recvSheet();
   else if (a === 'shcopy') { const t = $('#sh-link'); t.select(); try { await navigator.clipboard.writeText(t.value); b.textContent = '✅ คัดลอกแล้ว'; } catch (e) { document.execCommand('copy'); b.textContent = '✅ คัดลอกแล้ว'; } }
@@ -515,13 +573,17 @@ document.addEventListener('change', async ev => {
   const t = ev.target;
   if (t.dataset.m) { S.money[t.dataset.m] = t.value; save(); const y = window.scrollY; renderMoney(); window.scrollTo(0, y); }
   else if (t.dataset.est) { const y = window.scrollY; renderMoney(); window.scrollTo(0, y); }
-  else if (t.dataset.bind === 'sun') { S.sun = t.value; save(); }
+  else if (t.dataset.bind === 'sun') { S.sun = t.value; touch(); }
   else if (t.dataset.photo && t.files[0]) { try { await idbReq('readwrite', s => s.add({ spot: t.dataset.photo, blob: t.files[0] })); loadThumbs(); } catch (e) { alert('บันทึกภาพไม่ได้ในเบราว์เซอร์นี้'); } }
 });
 
 go('now');
 (function incoming() { if (!/plan=/.test(location.hash)) return; const j = unpackPlan(location.hash); history.replaceState(null, '', location.pathname); if (!j) { alert('ลิงก์แพลนไม่ถูกต้อง'); return; } if (confirm(`รับแพลนที่แก้จากอีกเครื่อง (${Object.keys(j.ov).length + j.custom.length} จุด)? จะแทนที่การแก้แพลนในเครื่องนี้`)) applyPlan(j); })();
 if (S.geoOn) startGeo();
+if (S.topic) syncNow();
+setInterval(() => { if (S.topic && document.visibilityState === 'visible') syncNow(); }, 20000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.topic) syncNow(); });
+window.addEventListener('online', () => { if (S.topic) syncNow(); });
 setInterval(() => { if (page === 'now' && !$('details[open]', $('#p-now')) && !$('#sheet').classList.contains('on')) renderNow(); }, 30000);
 window.addEventListener('online', offlineLine); window.addEventListener('offline', offlineLine);
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js').then(() => navigator.serviceWorker.ready).then(() => setTimeout(offlineLine, 800)); navigator.serviceWorker.addEventListener('controllerchange', offlineLine); }
