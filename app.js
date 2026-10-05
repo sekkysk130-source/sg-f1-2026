@@ -241,6 +241,12 @@ function renderSpots() {
       <div class="row" style="margin-top:8px">${act('pin', sp.pin, '🗺️ ดูบนแผนที่', 'sm')}<label class="btn sm" style="margin:0;color:var(--tx)">📷 เพิ่มภาพจากเครื่อง<input type="file" accept="image/*" data-photo="${sp.id}" style="display:none"></label></div>
       <label>โน้ตของฉัน</label><textarea data-note="spot-${sp.id}" placeholder="มุมนี้เป็นยังไง…">${esc(S.notes['spot-' + sp.id] || '')}</textarea>
     </div>`).join('')}
+    <h2>ภาพจากทางการ (หน้าบัตร 2026)</h2>
+    <p class="mut">ภาพประกอบที่ Singapore GP ใช้บนหน้าขายบัตร Premier Walkabout และ Zone 4 Walkabout ปี 2026 · ทางการ<b>ไม่ได้บอกปีที่ถ่ายและตำแหน่งของแต่ละภาพ</b> และเป็นภาพโปรโมตที่เลือกมุมดีมาแล้ว ใช้ดูบรรยากาศ ความสูงของแท่น และความหนาแน่นของคน ${badge('unk')}</p>
+    ${GALLERY.filter(g => !fz || g.z === fz).map(g => `<div class="card"><div class="row sp"><span class="pill">${g.z === 1 ? 'หน้าบัตร Premier Walkabout' : 'หน้าบัตร Zone 4 Walkabout'}</span></div>
+      <div class="imgbox"><div class="ld">⏳ กำลังโหลดภาพ…</div><img alt="${esc(g.cap)}" src="${g.url}" style="display:none" data-act="zoom" data-v="${g.url}" onload="this.style.display='block';this.previousElementSibling.style.display='none'" onerror="this.style.display='none';this.previousElementSibling.innerHTML='🖼️ โหลดภาพไม่ได้ (อาจไม่มีสัญญาณ)'"></div>
+      <div class="mut">${g.cap}</div><div class="row" style="margin-top:6px">${ext(g.url, 'เปิดภาพต้นฉบับ ↗', 'sm')}</div></div>`).join('')}
+    ${srcs([{ ...SRC.offPW, st: 'ok' }, { ...SRC.offZ4, st: 'ok' }])}
     <p class="mut">ภาพและโน้ตที่เพิ่มเองเก็บอยู่ในเครื่องนี้เท่านั้น ไม่ถูกส่งไปที่ไหน</p>`;
   const sel = $('[data-bind="sun"]'); if (sel) sel.value = S.sun || '';
   loadThumbs();

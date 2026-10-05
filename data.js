@@ -1,6 +1,6 @@
 /* ข้อมูลทริป — แก้ข้อความ/เวลาได้ที่ไฟล์นี้ไฟล์เดียว */
 const CHECKED = '5 ต.ค. 2026';
-const BUILD = '5 ต.ค. 2026 (ฉบับ 2)';
+const BUILD = '5 ต.ค. 2026 (ฉบับ 3)';
 
 const enc = encodeURIComponent;
 const gdir = (o, d, mode) => `https://www.google.com/maps/dir/?api=1&origin=${enc(o)}&destination=${enc(d)}&travelmode=${mode || 'transit'}`;
@@ -33,6 +33,8 @@ const SRC = {
   ltaPay: { label: 'LTA – วิธีจ่ายค่ารถไฟ/รถเมล์ (F1 2026)', url: 'https://onemotoring.lta.gov.sg/content/dam/onemotoring/Driving/f1/2026/pdf/F1%202026%20Payment%20Modes%20for%20Train%20and%20Bus%20Rides.pdf' },
   fare: { label: 'LTA – Fare Calculator', url: 'https://www.lta.gov.sg/content/ltagov/en/map/fare-calculator.html' },
   lemon: { label: 'Lemon8 @starklypositive – วิดีโอโค้ง 7 จากบัตร Zone 4 Walkabout (โพสต์ 22 ก.ย. 2024)', url: 'https://www.lemon8-app.com/@starklypositive/7417320491767087633?region=sg' },
+  offPW: { label: 'singaporegp.sg – ภาพประกอบหน้าบัตร Premier Walkabout 2026', url: 'https://singaporegp.sg/en/tickets/general-tickets/walkabouts/premier-walkabout/' },
+  offZ4: { label: 'singaporegp.sg – ภาพประกอบหน้าบัตร Zone 4 Walkabout 2026', url: 'https://singaporegp.sg/en/tickets/general-tickets/walkabouts/zone-4-walkabout/' },
   fly: { label: 'Fly F1 Travel (ภาพปี 2025)', url: 'https://flyf1travel.com/' },
   note: { label: 'note.com/torazou_il – บันทึกผู้ชมปี 2025 (บัตร Zone 4 Walkabout)', url: 'https://note.com/torazou_il/n/ndfe39a1d6789' },
   reddit1: { label: 'Reddit r/GrandPrixTravel – ประสบการณ์ Walkabout ปี 2025', url: 'https://www.reddit.com/r/GrandPrixTravel/comments/1nyriwp/avoid_walkabout_tickets_as_of_2025_singapore/' },
@@ -344,7 +346,7 @@ const SPOTS = [
     block: 'รั้วตาข่าย · มีอัฒจันทร์ Empress และแท่นผู้ใช้รถเข็น (Empress Platform) อยู่ใกล้ — แท่นนั้นไม่ใช่ของบัตรนี้', screen: 'ยังไม่ยืนยันว่ามีจอ',
     crowd: 'ผู้ชมปี 2025 หลายคนบ่นว่าโค้ง 12 และจุดยอดนิยมแน่นมาก (สรุปจากกระทู้ Reddit ตามบรีฟ)',
     pros: 'ติด Waterside และ Gate 4 เดินต่อจาก HYO ได้ทันที', cons: 'ความเร็วต่ำ เห็นช่วงสั้น คนแน่น',
-    next: 'ไป Padang Stage 10–20 นาที', full: 'แท่นริม Esplanade Drive (ช่วงโค้ง 13 → 14) ที่อยู่ถัดไป',
+    next: 'ไป Padang Stage 10–20 นาที', full: 'แท่นริม Esplanade Drive (ช่วงโค้ง 13 → 14) ที่อยู่ถัดไป — มีภาพจริงในการ์ดด้านล่าง',
     rest: 'Esplanade Park อยู่ติดกัน มีร้านอาหารและห้องน้ำตามแผนที่', src: [{ ...SRC.map, st: 'ok' }, { ...SRC.reddit1, st: 'prev', extra: 'เปิดอ่านซ้ำไม่ได้ตอนตรวจ ใช้สรุปจากบรีฟ' }] },
   { id: 'pit', name: 'Pit Exit', zone: 1, tags: ['race'], uses: 'ตัวเลือกสำรองฝั่ง Zone 1', pin: 't13',
     img: { url: 'https://flyf1travel.com/wp-content/uploads/2025/10/1-1-1024x538.jpg', year: 2025, credit: 'Fly F1 Travel', cap: 'จากแท่น Walkabout ใกล้ทางออกพิท รถใกล้ แต่รั้วอยู่ตรงหน้า' },
@@ -357,8 +359,17 @@ const SPOTS = [
     crowd: 'ยังไม่มีข้อมูล', pros: 'ได้ยินเสียงเร่งเครื่องเต็ม ๆ ใกล้ Gate 2 และ Promenade MRT', cons: 'ไม่เห็นการแซง ไม่เห็นทั้งโค้ง',
     next: 'ไป Padang Stage ราว 25–40 นาที (ประมาณ)', full: 'เดินต่อไปแท่นโค้ง 1–3 หรือกลับ Zone 4', rest: 'ไม่ต้องเดินไปเพื่อใช้บัตรให้คุ้ม ถ้าไม่ได้ผ่านทางนี้',
     src: [{ ...SRC.fly, st: 'prev' }, { ...SRC.pwTicket, st: 'ok' }] },
+  { id: 't1314', name: 'Esplanade Drive · ระหว่างโค้ง 13–14', zone: 4, tags: ['easy'], uses: 'ที่หลบเมื่อแท่นโค้ง 11–12 เต็ม', pin: 't1314',
+    img: { url: 'https://assets.st-note.com/img/1787224834-vRAGaWBPbErDmoyLMVTfOxZ7.jpg?width=1200', year: 2025, credit: 'torazou_iced_latte (note.com)', page: SRC.note.url, pageLabel: 'เปิดบันทึกต้นฉบับ ↗',
+      cap: 'แท่น Walkabout เตี้ย ๆ ริมแทร็กช่วงกลางระหว่างโค้ง 13 กับ 14 ฝั่งตะวันออกเฉียงใต้ ถ่ายตอนกลางวันโดยผู้ถือบัตร Zone 4 Walkabout · แทร็กอยู่ติดแท่น มีรั้วตาข่ายคั่น ด้านหลังเป็นตึก Fullerton' },
+    sees: 'รถเร่งผ่านทางตรงบน Esplanade Drive อย่างเดียว ไม่เห็นโค้ง (เจ้าของภาพบอกว่า “แค่วิ่งผ่านทางตรง”)', near: 'ใกล้มาก — จากภาพปี 2025 แท่นอยู่ติดขอบแทร็ก',
+    block: 'รั้วตาข่ายสูงตลอดแนว แท่นค่อนข้างเตี้ย', screen: 'ยังไม่ยืนยันว่ามีจอ', crowd: 'ภาพปี 2025 ช่วงกลางวันคนยังนั่งพักบนขั้นได้ ยังไม่มีข้อมูลช่วงเรซ',
+    pros: 'รถผ่านใกล้และเร็ว อยู่ระหว่าง Waterside กับ Esplanade เดินถึงง่าย', cons: 'เห็นแค่ช่วงทางตรง รถผ่านแวบเดียว',
+    next: 'ไป Padang Stage ราว 10–15 นาที (ประมาณ)', full: 'เดินต่อไปแท่นช่วงโค้ง 14–15 ริม Raffles Avenue', rest: 'ก่อนเริ่มนั่งบนขั้นได้ พอรถวิ่งเจ้าหน้าที่ให้ยืน (ปี 2025)',
+    src: [{ ...SRC.note, st: 'prev' }, { ...SRC.map, st: 'ok' }] },
   { id: 't1415', name: 'Raffles Avenue ใกล้ Gate 7 · โค้ง 14–15', zone: 4, tags: ['easy'], uses: 'ที่หลบเมื่อแท่นอื่นใน Zone 4 เต็ม', pin: 't1415',
-    img: null, noImg: 'ยังไม่มีภาพที่ได้รับอนุญาตให้แสดง ดูภาพในบันทึกต้นทางได้จากลิงก์อ้างอิง',
+    img: { url: 'https://assets.st-note.com/img/1787224942-CU1ZtfzjnpuVwDhJbQxs8X4E.jpg?width=1200', year: 2025, credit: 'torazou_iced_latte (note.com)', page: SRC.note.url, pageLabel: 'เปิดบันทึกต้นฉบับ ↗',
+      cap: 'ตัวแท่น Walkabout แบบขั้นบันไดช่วงโค้ง 14–15 ฝั่งตะวันออก ถ่ายตอนกลางวันโดยผู้ถือบัตร Zone 4 Walkabout · แทร็กอยู่หลังรั้วและแนวต้นไม้ทางซ้าย · เจ้าของภาพบอกว่าขั้นบนสุดคนแย่งกัน ช่วงต้นเรซแน่นแล้วค่อย ๆ ว่าง' },
     sees: 'รถวิ่งผ่านช่วงโค้ง 14 → 15 ริม Esplanade', near: 'ยังไม่ยืนยัน', block: 'รั้วตาข่าย — ผู้ชมปี 2025 บอกเลี่ยงแทบไม่ได้', screen: 'ผู้ชมปี 2025 (บัตร Zone 4 Walkabout) บอกว่าโซน Walkabout ส่วนใหญ่ไม่มีจอ',
     crowd: 'ผู้ชมปี 2025 เรียกจุดหน้า Gate 7 ว่าหาที่ง่ายกว่าจุดอื่น', pros: 'คนน้อยกว่า อยู่ติด Gate 7', cons: 'ไกล Padang กว่า Memorial เล็กน้อย',
     next: 'ไป Padang Stage ราว 10–20 นาที (ประมาณ)', full: 'เดินเลียบ Raffles Avenue หาแท่นถัดไป', rest: 'ก่อนเริ่มนั่งได้ พอรถวิ่งเจ้าหน้าที่ให้ยืน (ปี 2025)',
@@ -379,6 +390,7 @@ const PINS = [
   { id: 'flyer', k: 'stage', ic: '🎡', name: 'Singapore Flyer (Zone 2)', x: 67.9, y: 76.1, info: 'เสาร์เปิด 14:15–23:00' },
   { id: 't7', k: 'view', name: 'แท่น Memorial · โค้ง 7–8', x: 37.4, y: 27.2, info: 'Zone 4' },
   { id: 't1112', k: 'view', name: 'แท่นโค้ง 11–12', x: 9.9, y: 43.7, info: 'Zone 4' },
+  { id: 't1314', k: 'view', name: 'แท่น Esplanade Drive · โค้ง 13–14', x: 18.4, y: 55.8, info: 'Zone 4' },
   { id: 't1415', k: 'view', name: 'แท่น Raffles Ave · โค้ง 14–15', x: 35.7, y: 43.2, info: 'Zone 4' },
   { id: 't13', k: 'view', name: 'แท่นโค้ง 1–3 / Pit Exit', x: 82.8, y: 46.5, info: 'Zone 1' },
   { id: 't5', k: 'view', name: 'แท่นโค้ง 5', x: 73.6, y: 61.7, info: 'Zone 1' },
@@ -431,6 +443,7 @@ const LOCS = {
   flyer: { n: 'Singapore Flyer', p: [1.2893, 103.8631], a: true },
   memorial: { n: 'Memorial · โค้ง 7–8', p: [1.2929, 103.8547], a: true },
   t13: { n: 'โค้ง 1–3', p: [1.2948, 103.8628], a: true },
+  t1314: { n: 'Esplanade Drive · โค้ง 13–14', p: [1.2880, 103.8545], a: true },
   t1112: { n: 'โค้ง 11–12 / Anderson Bridge', p: [1.2873, 103.8531], a: true },
   maxwell: { n: 'Maxwell Food Centre (Ah Tai)', p: [1.28043, 103.8447], a: true },
   btrt: { n: 'Buddha Tooth Relic Temple', p: [1.2815155, 103.8442397] },
@@ -460,3 +473,17 @@ const EVLOC = {
   'd3-wake': 'hotel', 'd3-temple': 'kwanim', 'd3-free': 'tbb', 'd3-porsche': 't1112', 'd3-lana': 'padang',
   'd4-wake': 'hotel', 'd4-co': 'hotel', 'd4-ci': 'changi', 'd4-fly': 'changi',
 };
+
+/* ภาพจากหน้าบัตรของทางการ — ทางการไม่ได้ระบุปีที่ถ่ายและตำแหน่ง คำว่า "น่าจะ" คือเดาจากสิ่งที่เห็นในภาพ */
+const OFF = 'https://storage.singaporegp.sg/web/2026/tickets/';
+const GALLERY = [
+  { z: 1, url: 'https://storage-uat.singaporegp.sg/web/2026/tickets/180-photos/premier-walkabout.jpg', cap: 'มุมกว้างจากพื้นที่ Premier Walkabout: เห็นอาคาร Paddock Club, Singapore Flyer และป้ายเส้นชัย น่าจะเป็นปลายทางตรงหน้าพิทใต้สะพาน Benjamin Sheares · คนยืนเต็มแนวรั้ว' },
+  { z: 1, url: OFF + 'premier-walkabout/premier-walkabout-2.jpg', cap: 'ยืนดูใต้โครงสะพาน รถผ่านใกล้หลังรั้วตาข่าย น่าจะเป็นช่วงโค้ง 1–3 · คนยืนซ้อนหลายแถว' },
+  { z: 1, url: OFF + 'premier-walkabout/premier-walkabout-1.jpg', cap: 'ภาพมุมสูงของแท่น Walkabout แบบขั้นบันได คนเต็มแท่น มีรั้วสองชั้นระหว่างแท่นกับแทร็ก · ไม่ทราบตำแหน่ง' },
+  { z: 1, url: OFF + 'premier-walkabout/premier-walkabout-4.jpg', cap: 'ช่วงกลางวัน คนยืนชิดรั้วยกมือถือถ่ายรถ · ไม่ทราบตำแหน่ง' },
+  { z: 1, url: OFF + 'premier-walkabout/premier-walkabout-3.jpg', cap: 'ช่วงกลางคืน มองข้ามหัวคนดูไปที่แทร็ก เห็น Flyer ด้านหลัง · ไม่ทราบตำแหน่ง' },
+  { z: 4, url: 'https://storage-uat.singaporegp.sg/web/2026/tickets/180-photos/zone-4-walkabout.jpg', cap: 'มุมกว้างจากแท่น Zone 4 Walkabout ตอนกลางคืน: แท่นยกสูง มองลงเห็นทางตรงและรั้วตาข่าย · ไม่ทราบตำแหน่ง' },
+  { z: 4, url: OFF + 'zone-4-walkabout/zone-4-walkabout-4.jpg', cap: 'แท่น Zone 4 เห็นหลังคา Esplanade ด้านหลัง น่าจะเป็นริม Esplanade Drive · คนเต็มแท่น' },
+  { z: 4, url: OFF + 'zone-4-walkabout/zone-4-walkabout-1.jpg', cap: 'ยืนระดับพื้นชิดรั้ว รถผ่านใกล้มาก · ไม่ทราบตำแหน่ง' },
+  { z: 4, url: OFF + 'zone-4-walkabout/zone-4-walkabout-2.jpg', cap: 'ยืนดูใต้ต้นไม้ มีรั้วและกำแพงคอนกรีตคั่น ฝั่งตรงข้ามเป็นอัฒจันทร์ · ไม่ทราบตำแหน่ง' },
+];
