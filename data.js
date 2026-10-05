@@ -1,6 +1,6 @@
 /* ข้อมูลทริป — แก้ข้อความ/เวลาได้ที่ไฟล์นี้ไฟล์เดียว */
 const CHECKED = '5 ต.ค. 2026';
-const BUILD = '5 ต.ค. 2026 (ฉบับ 3)';
+const BUILD = '5 ต.ค. 2026 (ฉบับ 4)';
 
 const enc = encodeURIComponent;
 const gdir = (o, d, mode) => `https://www.google.com/maps/dir/?api=1&origin=${enc(o)}&destination=${enc(d)}&travelmode=${mode || 'transit'}`;

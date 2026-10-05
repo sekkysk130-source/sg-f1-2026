@@ -1,6 +1,6 @@
 /* ---------- state (เก็บในเครื่องเท่านั้น) ---------- */
 const KEY = 'f1sg.v1';
-const DEF = { done: {}, pack: {}, notes: {}, sim: null, day: null, sun: '', geoOn: false,
+const DEF = { done: {}, pack: {}, notes: {}, sim: null, day: null, sun: '', geoOn: false, ov: {}, custom: [],
   money: { cardType: '', rate: '26.25', cardTHB: '3000', cashTHB: '1000', cardSGD: '', cashSGD: '', est: {}, tx: [] } };
 let S = (() => { try { const j = JSON.parse(localStorage.getItem(KEY) || '{}'); return { ...DEF, ...j, money: { ...DEF.money, ...(j.money || {}) } }; } catch (e) { return JSON.parse(JSON.stringify(DEF)); } })();
 let storeOk = true;
@@ -17,12 +17,41 @@ const hm = (ms, tz) => fmt(ms, tz || 'Asia/Singapore', { hour: '2-digit', minute
 const dayStr = ms => fmt(ms, 'Asia/Singapore', { weekday: 'long', day: 'numeric', month: 'short' });
 const sgDate = ms => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Singapore' }).format(ms);
 
-const EVS = [];
-DAYS.forEach(d => d.items.forEach((it, i) => { it._d = d; it._i = i; if (it.t === 'ev' && it.s) { it._S = ts(d.date, it.s); it._E = ts(d.date, it.endOfficial || it.e); EVS.push(it); } }));
-EVS.sort((a, b) => a._S - b._S);
-const TRIP_S = EVS[0]._S, TRIP_E = EVS[EVS.length - 1]._E;
-const byId = {}; DAYS.forEach(d => d.items.forEach(it => byId[it.id] = it)); byId.ret = RETURN_HOTEL;
-const routeBefore = ev => { const its = ev._d.items; for (let i = ev._i - 1; i >= 0; i--) { if (its[i].t === 'rt') return its[i]; if (its[i].t === 'ev') return null; } return null; };
+/* ---------- แพลนที่ใช้จริง = แพลนตั้งต้น + สิ่งที่แก้เองในเครื่องนี้ ---------- */
+let EVS = [], byId = {}, TRIP_S = 0, TRIP_E = 0;
+const addMin = (hm0, m) => { const [h, mi] = hm0.split(':').map(Number); let x = ((h * 60 + mi + m) % 1440 + 1440) % 1440; return String(Math.floor(x / 60)).padStart(2, '0') + ':' + String(x % 60).padStart(2, '0'); };
+const diffMin = (a, b) => { const f = x => { const [h, m] = x.split(':').map(Number); return h * 60 + m; }; return f(b) - f(a); };
+const baseItem = id => { for (const d of DAYS) for (const it of d.items) if (it.id === id) return it; return null; };
+const editCount = () => Object.keys(S.ov).length + S.custom.length;
+function rebuild() {
+  EVS = []; byId = { ret: RETURN_HOTEL };
+  DAYS.forEach(d => {
+    let list = d.items.map(it => {
+      const o = S.ov[it.id]; if (!o || it.t !== 'ev') return { ...it };
+      const c = { ...it, _base: it, _ed: true };
+      if (o.hide) { c._hide = true; return c; }
+      if (o.title) c.title = o.title; if (o.place != null && o.place !== '') c.place = o.place; if (o.note) c.unote = o.note;
+      if (o.s) { c.s = o.s; c.e = o.e || addMin(o.s, 30); c.plan = `${c.s}–${c.e}`; delete c.endOfficial; c._timeEd = true; }
+      return c;
+    });
+    // การ์ดเส้นทาง: ซ่อนถ้ากิจกรรมถัดไปถูกซ่อน / เลื่อนเวลา "ควรออก" ตามกิจกรรมถัดไปที่ถูกแก้เวลา
+    for (let k = 0; k < list.length; k++) { if (list[k].t !== 'rt') continue; const nx = list.slice(k + 1).find(x => x.t === 'ev'); if (!nx) continue;
+      if (nx._hide) list[k]._hide = true;
+      else if (nx._timeEd && nx._base.s && list[k].leave) { const dm = diffMin(nx._base.s, nx.s); if (dm) { list[k].leave = addMin(list[k].leave, dm); list[k]._shift = dm; } } }
+    S.custom.filter(c => c.day === d.id).sort((x, y) => (x.s || '99') < (y.s || '99') ? -1 : 1).forEach(c => {
+      const it = { id: c.id, t: 'ev', s: c.s || undefined, e: c.s ? (c.e || addMin(c.s, 30)) : undefined, icon: '⭐', title: c.title, place: c.place || '', unote: c.note || '', status: 'tip', _custom: true };
+      it.plan = it.s ? `${it.s}–${it.e}` : 'ไม่ระบุเวลา';
+      let pos = list.length; if (it.s) { const k = list.findIndex(x => x.t === 'ev' && x.s && !x._hide && x.s > it.s); if (k >= 0) { pos = k; while (pos > 0 && (list[pos - 1].t === 'rt' || list[pos - 1].t === 'rest')) pos--; } }
+      list.splice(pos, 0, it);
+    });
+    d.hidden = list.filter(x => x._hide && x.t === 'ev'); d.eff = list.filter(x => !x._hide);
+    d.eff.forEach((it, k) => { it._d = d; it._i = k; byId[it.id] = it; if (it.t === 'ev' && it.s) { it._S = ts(d.date, it.s); it._E = ts(d.date, it.endOfficial || it.e); if (it._E <= it._S) it._E += 86400000; EVS.push(it); } });
+  });
+  EVS.sort((x, y) => x._S - y._S);
+  TRIP_S = EVS[0]._S; TRIP_E = EVS[EVS.length - 1]._E;
+}
+const routeBefore = ev => { const its = ev._d.eff; for (let i = ev._i - 1; i >= 0; i--) { if (its[i].t === 'rt') return its[i]; if (its[i].t === 'ev') return null; } return null; };
+rebuild();
 
 /* ---------- small renderers ---------- */
 const ST = { ok: ['b-ok', 'ยืนยันทางการ 2026'], tip: ['b-tip', 'คำแนะนำ'], prev: ['b-prev', 'ประสบการณ์ปีก่อน'], unk: ['b-unk', 'ยังไม่ยืนยัน'] };
@@ -35,6 +64,7 @@ function routeCard(r, open) {
   return `<div class="card rt" id="c-${r.id}">
     <div class="row sp"><h3>🚇 ${r.title}</h3>${badge(r.status)}</div>
     <div class="kv">${r.leave ? `ควรออก <span class="time">${r.leave}</span> · ` : ''}ใช้เวลา <b style="color:var(--tx)">${r.total}</b></div>
+    ${r._shift ? `<div class="warn">✏️ เวลาควรออกเลื่อน ${r._shift > 0 ? 'ช้าลง' : 'เร็วขึ้น'} ${Math.abs(r._shift)} นาที ตามเวลากิจกรรมถัดไปที่แก้เอง · เหตุผลและขั้นตอนด้านล่างยังเป็นของแพลนเดิม ถ้าย้ายสถานที่ต้องดูเส้นทางเอง</div>` : ''}
     <details ${open ? 'open' : ''}><summary>วิธีไปทีละขั้น</summary>
       <div class="mut">${r.from} → ${r.to}</div>
       <div class="grid3"><div><b>เดิน</b>${r.walk}</div><div><b>นั่งรถ</b>${r.ride}</div><div><b>เผื่อคิว/ตรวจบัตร</b>${r.buffer}</div></div>
@@ -51,18 +81,21 @@ function routeCard(r, open) {
 function evCard(ev, hl) {
   const dn = !!S.done[ev.id];
   const o = ev.official;
-  const differs = o && o.note && !/^ตรงกับแพลน/.test(o.note);
+  const differs = o && ((o.note && !/^ตรงกับแพลน/.test(o.note)) || ev._timeEd);
   return `<div class="card ${hl ? 'hl' : ''} ${dn ? 'done' : ''}" id="c-${ev.id}">
     <div class="row" style="align-items:flex-start;flex-wrap:nowrap">
       <button class="chk ${dn ? 'on' : ''}" data-act="done" data-v="${ev.id}" aria-label="ทำแล้ว">✓</button>
       <div style="flex:1;min-width:0">
         <div class="time">${ev.plan}</div>
-        <h3 class="ttl">${ev.icon || ''} ${ev.title}</h3>
-        <div class="mut">${ev.place || ''}</div>
-        <div style="margin-top:4px">${badge(ev.status)}</div>
+        <h3 class="ttl">${ev.icon || ''} ${esc(ev.title)}</h3>
+        <div class="mut">${ev._ed || ev._custom ? esc(ev.place || '') : (ev.place || '')}</div>
+        <div style="margin-top:4px">${ev._custom ? '<span class="bdg b-me">เพิ่มเอง</span>' : badge(ev.status)}${ev._ed ? ' <span class="bdg b-me">แก้เอง</span>' : ''}</div>
       </div>
+      <button class="edit" data-act="edit" data-v="${ev.id}" aria-label="แก้ไข">✏️</button>
     </div>
-    ${o ? `<div class="${differs ? 'warn diff' : 'off'}"><b>เวลาตามแพลนเดิม:</b> ${ev.plan}<br><b>เวลาทางการล่าสุด:</b> ${o.time}${o.note ? `<br>${differs ? '⚠️ ' : ''}${o.note}` : ''}</div>` : ''}
+    ${ev._timeEd && !ev.official ? `<div class="mut" style="margin-top:6px">เวลาในแพลนตั้งต้น: ${ev._base.plan}</div>` : ''}
+    ${ev.unote ? `<div class="off">📝 ${esc(ev.unote)}</div>` : ''}
+    ${o ? `<div class="${differs ? 'warn diff' : 'off'}">${ev._timeEd ? `<b>เวลาที่แก้เอง:</b> ${ev.plan} — งานจริงยังจัดตามเวลาทางการ<br>` : ''}<b>เวลาตามแพลนเดิม:</b> ${ev._base ? ev._base.plan : ev.plan}<br><b>เวลาทางการล่าสุด:</b> ${o.time}${o.note && !(ev._timeEd && /^ตรงกับแพลน/.test(o.note)) ? `<br>${differs ? '⚠️ ' : ''}${o.note}` : ''}</div>` : ''}
     ${ev.overlap ? `<div class="warn">⚠️ ${ev.overlap}</div>` : ''}
     ${(ev.detail || ev.links || ev.src || ev.maps || ev.spot || ev.pin || ev.ret) ? `<details><summary>รายละเอียด</summary>
       ${ev.detail ? `<p>${ev.detail}</p>` : ''}
@@ -77,7 +110,7 @@ const restCard = r => `<div class="card rest"><div class="row sp"><h3>🧃 ${r.t
 const geo = { pos: null, err: '', wid: null, busy: false };
 const dist = (a, b) => { const R = 6371000, r = x => x * Math.PI / 180, dl = r(b[0] - a[0]), dn = r(b[1] - a[1]); const h = Math.sin(dl / 2) ** 2 + Math.cos(r(a[0])) * Math.cos(r(b[0])) * Math.sin(dn / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
 const dtxt = m => m >= 1000 ? (m / 1000).toFixed(m >= 10000 ? 0 : 1) + ' กม.' : Math.round(m / 10) * 10 + ' ม.';
-const evLoc = ev => { if (!ev) return null; if (ev.id === 'd3-race' || ev.id === 'd3-parade' || ev.id === 'd3-anthem') return S.sun === 'A' ? LOCS.t13 : S.sun === 'B' ? LOCS.memorial : null; return LOCS[EVLOC[ev.id]] || null; };
+const evLoc = ev => { if (!ev) return null; if (ev.id === 'd3-race' || ev.id === 'd3-parade' || ev.id === 'd3-anthem') return S.sun === 'A' ? LOCS.t13 : S.sun === 'B' ? LOCS.memorial : null; if (ev._custom || (S.ov[ev.id] && S.ov[ev.id].place)) return null; return LOCS[EVLOC[ev.id]] || null; };
 function startGeo() {
   if (!('geolocation' in navigator)) { geo.err = 'เบราว์เซอร์นี้อ่านตำแหน่งไม่ได้'; drawGeo(); return; }
   if (geo.wid != null) navigator.geolocation.clearWatch(geo.wid);
@@ -99,19 +132,19 @@ function geoHtml() {
   if (S.sim != null) h += `<div class="warn">🧪 กำลังใช้เวลาทดลอง แต่ตำแหน่งเป็นตำแหน่งจริงตอนนี้</div>`;
   if (!inSG) h += `<div class="off">ยังไม่ได้อยู่ในสิงคโปร์ (ห่าง Padang ราว ${dtxt(dist(me, LOCS.padang.p))}) การเทียบเวลาเดินจะเริ่มเมื่อถึงสิงคโปร์</div>`;
   else {
-    cur.forEach(e => { const L = evLoc(e); if (!L) return; const d = dist(me, L.p); h += d < 120 + geo.pos.acc ? `<div class="off">✅ ตรงกับแพลนตอนนี้: ${e.icon} ${e.title} ที่ ${L.n}</div>` : `<div class="warn">ตามแพลนตอนนี้คือ ${e.icon} <b>${e.title}</b> ที่ ${L.n} — คุณอยู่ห่างราว ${dtxt(d)}</div>`; });
+    cur.forEach(e => { const L = evLoc(e); if (!L) return; const d = dist(me, L.p); h += d < 120 + geo.pos.acc ? `<div class="off">✅ ตรงกับแพลนตอนนี้: ${e.icon} ${esc(e.title)} ที่ ${L.n}</div>` : `<div class="warn">ตามแพลนตอนนี้คือ ${e.icon} <b>${esc(e.title)}</b> ที่ ${L.n} — คุณอยู่ห่างราว ${dtxt(d)}</div>`; });
     if (next) {
       const L = evLoc(next), mins = Math.round((next._S - t) / 60000), rt = routeBefore(next);
-      if (!L) h += `<div class="mut" style="margin-top:6px">ถัดไป ${next.icon} ${next.title} — ยังไม่ได้ระบุสถานที่${next.id.startsWith('d3-') ? ' (เลือก A/B ในหน้า “จุดดู F1” ก่อน)' : ''} จึงเทียบระยะไม่ได้</div>`;
+      if (!L) h += `<div class="mut" style="margin-top:6px">ถัดไป ${next.icon} ${esc(next.title)} — ยังไม่ได้ระบุสถานที่${next.id.startsWith('d3-') ? ' (เลือก A/B ในหน้า “จุดดู F1” ก่อน)' : ''} จึงเทียบระยะไม่ได้</div>`;
       else if (mins <= 720) {
         const d = dist(me, L.p);
-        if (d < 150 + geo.pos.acc) h += `<div class="off">✅ ถึงจุดหมายถัดไปแล้ว: ${next.icon} ${next.title} (${L.n}) เริ่ม ${next.s}</div>`;
+        if (d < 150 + geo.pos.acc) h += `<div class="off">✅ ถึงจุดหมายถัดไปแล้ว: ${next.icon} ${esc(next.title)} (${L.n}) เริ่ม ${next.s}</div>`;
         else if (d <= 1500) {
           const w = Math.ceil(d * 1.4 / 70);
           let mmv = rt && rt.mm; if (rt && rt.id === 'd3-r3' && S.sun === 'A') mmv = [30, 45];
           const usePlan = mmv && d > 400 && mmv[0] > w, eff = usePlan ? mmv[0] : w, slack = mins - eff;
           const tight = usePlan && mins < mmv[1] && slack >= 0;
-          h += `<div class="${slack >= 15 && !tight ? 'off' : 'warn' + (slack < 0 ? ' diff' : '')}">ถึง <b>${L.n}</b> ราว ${dtxt(d)} (เส้นตรง) · เดินเส้นตรงประมาณ ${w} นาที${usePlan ? ` · แต่แพลนประเมินช่วงนี้ <b>${mmv[0]}–${mmv[1]} นาที</b> (รวมทางอ้อม คิว และคนแน่น) ให้ยึดตัวเลขนี้` : ''} · ${next.title} เริ่มในอีก ${mins} นาที<br><b>${slack < 0 ? `น่าจะถึงหลังเริ่มราว ${-slack} นาทีขึ้นไป` : tight ? 'ควรออกเดี๋ยวนี้ ถ้าคนแน่นอาจพลาดช่วงต้น' : slack >= 15 ? `มีเวลาเหลือราว ${slack} นาที` : 'ควรออกเดินเดี๋ยวนี้'}</b></div>`;
+          h += `<div class="${slack >= 15 && !tight ? 'off' : 'warn' + (slack < 0 ? ' diff' : '')}">ถึง <b>${L.n}</b> ราว ${dtxt(d)} (เส้นตรง) · เดินเส้นตรงประมาณ ${w} นาที${usePlan ? ` · แต่แพลนประเมินช่วงนี้ <b>${mmv[0]}–${mmv[1]} นาที</b> (รวมทางอ้อม คิว และคนแน่น) ให้ยึดตัวเลขนี้` : ''} · ${esc(next.title)} เริ่มในอีก ${mins} นาที<br><b>${slack < 0 ? `น่าจะถึงหลังเริ่มราว ${-slack} นาทีขึ้นไป` : tight ? 'ควรออกเดี๋ยวนี้ ถ้าคนแน่นอาจพลาดช่วงต้น' : slack >= 15 ? `มีเวลาเหลือราว ${slack} นาที` : 'ควรออกเดินเดี๋ยวนี้'}</b></div>`;
         } else {
           let s = `ถึง <b>${L.n}</b> ราว ${dtxt(d)} (เส้นตรง) ไกลเกินเดิน`;
           if (rt) { const lv = rt.leave ? Math.round((ts(next._d.date, rt.leave) - t) / 60000) : null; s += ` · เส้นทางในแพลนใช้ ${rt.total}` + (lv != null ? ` · ${lv > 0 ? `ควรออกในอีก ${lv} นาที (${rt.leave})` : `<b>เลยเวลาออก ${rt.leave} มาแล้ว ${-lv} นาที</b>`}` : ''); }
@@ -146,12 +179,12 @@ function renderNow() {
       <div class="mut" style="text-align:right">เวลาไทย<br>${hm(t, 'Asia/Bangkok')}</div></div>
     ${phase ? `<div class="card"><b>${phase}</b><div class="mut">ลองเลือกวัน/เวลาด้านล่างเพื่อดูว่าหน้านี้จะแสดงอะไรระหว่างทริป</div></div>` : ''}
     <div class="card"><div class="mut">ตอนนี้</div>
-      ${cur.length ? cur.map(e => `<div class="big">${e.icon} ${e.title}</div><div class="mut">${e.plan} · ${e.place}</div>`).join('<hr style="border-color:var(--line)">') : `<div class="big">${t < TRIP_S || t > TRIP_E ? '—' : 'ช่วงว่าง / กำลังเดินทาง'}</div>`}
+      ${cur.length ? cur.map(e => `<div class="big">${e.icon} ${esc(e.title)}</div><div class="mut">${e.plan} · ${e._ed || e._custom ? esc(e.place) : e.place}</div>`).join('<hr style="border-color:var(--line)">') : `<div class="big">${t < TRIP_S || t > TRIP_E ? '—' : 'ช่วงว่าง / กำลังเดินทาง'}</div>`}
       ${cur.length > 1 ? '<div class="warn">⚠️ สองกิจกรรมซ้อนเวลากันตามแพลนเดิม</div>' : ''}
     </div>
     ${next ? `<div class="card hl"><div class="row sp"><div class="mut">ถัดไป · ${next._d.label}</div><span class="pill">${away}</span></div>
-      <div class="big">${next.icon} ${next.title}</div>
-      <div><span class="time">${next.plan}</span></div><div class="mut">${next.place}</div>
+      <div class="big">${next.icon} ${esc(next.title)}</div>
+      <div><span class="time">${next.plan}</span>${next._ed || next._custom ? ' <span class="bdg b-me">แก้เอง</span>' : ''}</div><div class="mut">${next._ed || next._custom ? esc(next.place) : next.place}</div>
       ${next.official && !/^ตรงกับแพลน/.test(next.official.note || '') ? `<div class="warn diff">⚠️ ทางการล่าสุด: ${next.official.time}</div>` : ''}
       ${leaveHtml}
       <div class="row" style="margin-top:10px">
@@ -178,7 +211,48 @@ function renderPlan() {
   $('#p-plan').innerHTML = `<div class="tabs">${DAYS.map(x => `<button class="btn ${x.id === id ? 'on' : ''}" data-act="day" data-v="${x.id}">${x.tab}</button>`).join('')}</div>
     <h2 style="margin-top:4px">${d.label}</h2><div class="mut">${d.title}</div>
     <div class="mut" style="margin-top:6px">${Object.keys(ST).map(k => badge(k)).join(' ')}</div>
-    ${d.items.map(it => it.t === 'rt' ? routeCard(it) : it.t === 'rest' ? restCard(it) : evCard(it, it.id === nextId)).join('')}`;
+    <div class="row" style="margin-top:10px">${act('add', d.id, '➕ เพิ่มกิจกรรม', 'sm pri')}${act('share', '', '📤 ส่งแพลนให้อีกเครื่อง', 'sm')}${act('recv', '', '📥 รับแพลน', 'sm')}</div>
+    ${editCount() ? `<div class="off">✏️ แพลนในเครื่องนี้ถูกแก้เอง ${editCount()} จุด (เก็บในเครื่องนี้) ${act('resetall', '', 'คืนค่าแพลนตั้งต้นทั้งหมด', 'sm')}</div>` : ''}
+    ${d.eff.map(it => it.t === 'rt' ? routeCard(it) : it.t === 'rest' ? restCard(it) : evCard(it, it.id === nextId)).join('')}
+    ${d.hidden.length ? `<div class="card"><h3>🙈 กิจกรรมที่ซ่อนไว้ (ไม่ไป)</h3>${d.hidden.map(h => `<div class="tx"><div>${h.icon || ''} ${h._base.title}<div class="mut">${h._base.plan}</div></div><button class="btn sm" style="flex:0 0 auto" data-act="unhide" data-v="${h.id}">แสดงอีกครั้ง</button></div>`).join('')}</div>` : ''}`;
+}
+
+
+/* ---------- แก้ไขแพลน ---------- */
+function editSheet(id, day) {
+  const isNew = !id, it = isNew ? null : byId[id], cu = it && it._custom, base = it && !cu ? baseItem(id) : null;
+  const v = isNew ? { title: '', place: '', s: '', e: '', note: '' } : { title: it.title, place: cu || it._ed ? (it.place || '') : (it.place || '').replace(/<[^>]+>/g, ''), s: it.s || '', e: it.s ? (it.endOfficial || it.e || '') : '', note: it.unote || '' };
+  $('#sheet .in').innerHTML = `<div class="card"><h3>${isNew ? '➕ เพิ่มกิจกรรม' : '✏️ แก้ไขกิจกรรม'}</h3>
+    ${base ? `<div class="mut">แพลนตั้งต้น: ${base.plan} · ${base.title}</div>` : ''}
+    ${isNew ? `<label>วัน</label><select id="ed-day">${DAYS.map(d => `<option value="${d.id}" ${d.id === day ? 'selected' : ''}>${d.tab} · ${d.label}</option>`).join('')}</select>` : ''}
+    <label>ชื่อกิจกรรม</label><input id="ed-title" value="${esc(v.title)}" placeholder="เช่น แวะซื้อของฝาก">
+    <label>สถานที่</label><input id="ed-place" value="${esc(v.place)}" placeholder="ไม่บังคับ">
+    <div class="two"><div><label>เริ่ม (เวลาสิงคโปร์)</label><input type="time" id="ed-s" value="${v.s}"></div><div><label>จบ</label><input type="time" id="ed-e" value="${v.e}"></div></div>
+    <label>เลื่อนทั้งช่วง</label><div class="row">${[-30, -15, 15, 30].map(m => act('edshift', m, (m > 0 ? '+' : '−') + Math.abs(m) + ' นาที', 'sm')).join('')}</div>
+    <label>เพิ่ม/ลดเวลาจบ</label><div class="row">${[-15, 15, 30].map(m => act('edlen', m, (m > 0 ? 'ยืด +' : 'ลด −') + Math.abs(m) + ' นาที', 'sm')).join('')}</div>
+    <label>โน้ต</label><textarea id="ed-note" placeholder="ไม่บังคับ">${esc(v.note)}</textarea>
+    <div class="row" style="margin-top:12px">${act('edsave', id || '', '💾 บันทึก', 'pri')}</div>
+    <div class="row" style="margin-top:8px">${isNew ? '' : cu ? act('eddel', id, '🗑️ ลบกิจกรรมนี้', 'sm') : act('edhide', id, '🙈 ไม่ไปกิจกรรมนี้ (ซ่อน)', 'sm') + (S.ov[id] ? act('edreset', id, '↩️ คืนค่าเดิม', 'sm') : '')}</div>
+    <p class="mut">บันทึกแล้วหน้าแพลนและการ์ด “ตอนนี้ / ถัดไป” เปลี่ยนตามทันที · เก็บในเครื่องนี้เท่านั้น อีกเครื่องจะเห็นเมื่อกด “ส่งแพลนให้อีกเครื่อง” · เวลาทางการของงานแข่งและคอนเสิร์ตไม่เปลี่ยนตามที่แก้</p></div>`;
+  $('#sheet').classList.add('on');
+}
+function afterEdit(dayId, id) { save(); rebuild(); closeSheet(); if (dayId) S.day = dayId; go('plan', true); if (id) scrollToEl('c-' + id); }
+const packPlan = () => btoa(unescape(encodeURIComponent(JSON.stringify({ v: 1, ov: S.ov, custom: S.custom })))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+function unpackPlan(txt) { try { let c = String(txt).trim(); const m = c.match(/plan=([A-Za-z0-9_-]+)/); if (m) c = m[1]; c = c.replace(/-/g, '+').replace(/_/g, '/'); const j = JSON.parse(decodeURIComponent(escape(atob(c)))); if (j && j.v === 1 && typeof j.ov === 'object' && Array.isArray(j.custom)) return j; } catch (e) { } return null; }
+function applyPlan(j) { S.ov = j.ov; S.custom = j.custom; save(); rebuild(); closeSheet(); go('plan'); }
+function shareSheet() {
+  const link = location.origin + location.pathname + '#plan=' + packPlan();
+  $('#sheet .in').innerHTML = `<div class="card"><h3>📤 ส่งแพลนให้อีกเครื่อง</h3>
+    <p>ส่งลิงก์นี้ทาง LINE ให้อีกคน เปิดแล้วกดยืนยัน แพลนที่แก้ (${editCount()} จุด) จะไปแทนที่ของเครื่องนั้น เช็กลิสต์ โน้ต และรายจ่ายของเขาไม่ถูกแตะ</p>
+    <textarea id="sh-link" readonly style="min-height:110px;font-size:.8rem">${link}</textarea>
+    <div class="row" style="margin-top:8px">${navigator.share ? act('shsend', '', '📤 ส่ง…', 'pri') : ''}${act('shcopy', '', '📋 คัดลอกลิงก์', navigator.share ? '' : 'pri')}</div>
+    <p class="mut">ถ้าอีกเครื่องใช้เว็บจากไอคอนบนหน้าจอโฮมของ iPhone ลิงก์จะไปเปิดใน Safari ซึ่งเก็บข้อมูลแยกกัน ให้เปิดแอปจากไอคอนแล้วกด “📥 รับแพลน” วางลิงก์นี้แทน · ไม่มีการซิงก์อัตโนมัติ แก้ใหม่เมื่อไรต้องส่งใหม่</p></div>`;
+  $('#sheet').classList.add('on');
+}
+function recvSheet() {
+  $('#sheet .in').innerHTML = `<div class="card"><h3>📥 รับแพลนจากอีกเครื่อง</h3><p>วางลิงก์ที่อีกเครื่องส่งมา</p><textarea id="rc-code" placeholder="วางลิงก์ที่นี่" style="min-height:110px;font-size:.8rem"></textarea>
+    <div class="row" style="margin-top:8px">${act('rcgo', '', 'ใช้แพลนนี้', 'pri')}</div><p class="mut">จะแทนที่การแก้แพลนในเครื่องนี้ทั้งหมด</p></div>`;
+  $('#sheet').classList.add('on');
 }
 
 /* ---------- ภาพ ---------- */
@@ -390,8 +464,30 @@ document.addEventListener('click', async ev => {
   else if (a === 'pack') { S.pack[v] = !S.pack[v]; save(); b.classList.toggle('on'); }
   else if (a === 'day') { S.day = v; go('plan'); }
   else if (a === 'page') go(v);
-  else if (a === 'goplan') { S.day = byId[v]._d.id; go('plan'); scrollToEl('c-' + v); }
+  else if (a === 'goplan') { S.day = (byId[v] || EVS[0])._d.id; go('plan'); scrollToEl('c-' + v); }
   else if (a === 'sheet') sheet(v);
+  else if (a === 'edit') editSheet(v);
+  else if (a === 'add') editSheet('', v);
+  else if (a === 'edshift' || a === 'edlen') { const s = $('#ed-s'), e = $('#ed-e'), m = +v; if (!s.value) return; if (!e.value) e.value = addMin(s.value, 30); if (a === 'edshift') { s.value = addMin(s.value, m); e.value = addMin(e.value, m); } else if (diffMin(s.value, addMin(e.value, m)) >= 5) e.value = addMin(e.value, m); }
+  else if (a === 'edsave') {
+    const title = $('#ed-title').value.trim(), place = $('#ed-place').value.trim(), s = $('#ed-s').value, e = $('#ed-e').value, note = $('#ed-note').value.trim();
+    if (!title) { $('#ed-title').focus(); return; }
+    if (!v) { const id = 'c-' + Date.now(), day = $('#ed-day').value; S.custom.push({ id, day, title, place, s, e, note }); afterEdit(day, id); }
+    else if (byId[v]._custom) { Object.assign(S.custom.find(c => c.id === v), { title, place, s, e, note }); afterEdit(null, v); }
+    else { const b = baseItem(v), o = {}; const bp = (b.place || '').replace(/<[^>]+>/g, '');
+      if (title !== b.title) o.title = title; if (place !== bp) o.place = place; if (note) o.note = note;
+      const be = b.s ? (b.endOfficial || b.e) : ''; if (s && (s !== (b.s || '') || (e || '') !== be)) { o.s = s; o.e = e || addMin(s, 30); }
+      if (Object.keys(o).length) S.ov[v] = o; else delete S.ov[v]; afterEdit(null, v); }
+  }
+  else if (a === 'edhide') { S.ov[v] = { hide: true }; afterEdit(); }
+  else if (a === 'unhide' || a === 'edreset') { delete S.ov[v]; afterEdit(null, v); }
+  else if (a === 'eddel') { S.custom = S.custom.filter(c => c.id !== v); delete S.done[v]; afterEdit(); }
+  else if (a === 'resetall') { if (confirm('คืนค่าแพลนตั้งต้นทั้งหมด? สิ่งที่แก้และกิจกรรมที่เพิ่มเองในเครื่องนี้จะหายไป')) { S.ov = {}; S.custom = []; afterEdit(); } }
+  else if (a === 'share') shareSheet();
+  else if (a === 'recv') recvSheet();
+  else if (a === 'shcopy') { const t = $('#sh-link'); t.select(); try { await navigator.clipboard.writeText(t.value); b.textContent = '✅ คัดลอกแล้ว'; } catch (e) { document.execCommand('copy'); b.textContent = '✅ คัดลอกแล้ว'; } }
+  else if (a === 'shsend') { try { await navigator.share({ title: 'แพลน F1 สิงคโปร์', url: $('#sh-link').value }); } catch (e) { } }
+  else if (a === 'rcgo') { const j = unpackPlan($('#rc-code').value); if (!j) { alert('ลิงก์ไม่ถูกต้อง ลองคัดลอกใหม่ทั้งข้อความ'); return; } if (confirm(`ใช้แพลนที่ส่งมา (${Object.keys(j.ov).length + j.custom.length} จุด) แทนของเครื่องนี้?`)) applyPlan(j); }
   else if (a === 'geo') { S.geoOn = true; save(); startGeo(); }
   else if (a === 'geooff') stopGeo();
   else if (a === 'spot') { closeSheet(); fz = 0; fm = ''; go('spots'); scrollToEl('s-' + v); }
@@ -424,6 +520,7 @@ document.addEventListener('change', async ev => {
 });
 
 go('now');
+(function incoming() { if (!/plan=/.test(location.hash)) return; const j = unpackPlan(location.hash); history.replaceState(null, '', location.pathname); if (!j) { alert('ลิงก์แพลนไม่ถูกต้อง'); return; } if (confirm(`รับแพลนที่แก้จากอีกเครื่อง (${Object.keys(j.ov).length + j.custom.length} จุด)? จะแทนที่การแก้แพลนในเครื่องนี้`)) applyPlan(j); })();
 if (S.geoOn) startGeo();
 setInterval(() => { if (page === 'now' && !$('details[open]', $('#p-now')) && !$('#sheet').classList.contains('on')) renderNow(); }, 30000);
 window.addEventListener('online', offlineLine); window.addEventListener('offline', offlineLine);
