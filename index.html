@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f1a">
+<meta name="robots" content="noindex, nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="มะหมาพาซิ่ง">
+<title>มะหมาพาซิ่ง 🏎️ ณ สิงคโปร์ อะเกนควัฟพ๋ม 🏁</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--bg:#0b0f1a;--card:#151b2b;--card2:#1c2438;--line:#2a3350;--tx:#f2f4fa;--mut:#a6aec6;--red:#ff3b30;--yel:#ffd400;--grn:#34d399;--blu:#60a5fa;--amb:#fbbf24;--gry:#94a3b8;--nav:68px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--tx);font-family:-apple-system,"Sukhumvit Set","Thonburi","Noto Sans Thai",system-ui,sans-serif;font-size:16px;line-height:1.55;overflow-x:hidden}
+body{padding-bottom:calc(var(--nav) + env(safe-area-inset-bottom) + 12px)}
+a{color:var(--blu)}
+h1{font-size:1.12rem;margin:0;line-height:1.35}
+h2{font-size:1.1rem;margin:20px 0 8px}
+h3{font-size:1rem;margin:0 0 4px}
+p{margin:6px 0}
+header{position:sticky;top:0;z-index:20;background:linear-gradient(180deg,#0b0f1a 75%,rgba(11,15,26,.0));padding:calc(env(safe-area-inset-top) + 10px) 16px 12px}
+.flag{height:6px;border-radius:3px;margin-top:8px;background:repeating-linear-gradient(90deg,#fff 0 10px,#111 10px 20px)}
+main{padding:0 14px;max-width:640px;margin:0 auto}
+.page{display:none}.page.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin:10px 0;overflow-wrap:anywhere}
+.card.hl{border-color:var(--red);box-shadow:0 0 0 1px var(--red) inset}
+.card.rt{background:var(--card2);border-style:dashed}
+.card.rest{border-left:4px solid var(--grn)}
+.mut{color:var(--mut);font-size:.9rem}
+.big{font-size:1.5rem;font-weight:700;line-height:1.25}
+.time{font-variant-numeric:tabular-nums;font-weight:700;color:var(--yel)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sp{justify-content:space-between}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:48px;padding:10px 14px;border-radius:12px;border:1px solid var(--line);background:#222b44;color:var(--tx);font:inherit;font-weight:600;text-decoration:none;cursor:pointer;flex:1 1 auto;text-align:center}
+.btn.pri{background:var(--red);border-color:var(--red);color:#fff}
+.btn.sm{min-height:40px;padding:6px 12px;font-size:.9rem;flex:0 1 auto}
+.btn.on{background:var(--yel);color:#111;border-color:var(--yel)}
+.btn:active{transform:scale(.98)}
+.bdg{display:inline-block;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap;vertical-align:middle}
+.b-ok{background:rgba(52,211,153,.16);color:var(--grn);border:1px solid var(--grn)}
+.b-tip{background:rgba(96,165,250,.16);color:var(--blu);border:1px solid var(--blu)}
+.b-prev{background:rgba(251,191,36,.16);color:var(--amb);border:1px solid var(--amb)}
+.b-unk{background:rgba(148,163,184,.16);color:var(--gry);border:1px solid var(--gry)}
+.warn{background:rgba(251,191,36,.1);border-left:4px solid var(--amb);padding:8px 10px;border-radius:8px;margin:8px 0;font-size:.92rem}
+.off{background:rgba(52,211,153,.08);border-left:4px solid var(--grn);padding:8px 10px;border-radius:8px;margin:8px 0;font-size:.92rem}
+.diff{background:rgba(255,59,48,.1);border-left:4px solid var(--red)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--blu);font-weight:600;min-height:40px;display:flex;align-items:center;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary:before{content:"▸ ";margin-right:4px}
+details[open]>summary:before{content:"▾ "}
+ol,ul{margin:6px 0;padding-left:22px}li{margin:4px 0}
+.src{font-size:.82rem;color:var(--mut);margin-top:8px}
+.src a{display:block;margin:3px 0}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0;font-size:.82rem}
+.grid3 div{background:#101627;border-radius:10px;padding:6px 8px}
+.grid3 b{display:block;color:var(--mut);font-weight:600;font-size:.74rem}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#0e1322;border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;height:var(--nav);background:none;border:0;color:var(--mut);font:inherit;font-size:.68rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;padding:0 2px}
+nav button span{font-size:1.4rem;line-height:1}
+nav button.on{color:var(--yel)}
+.tabs{display:flex;gap:6px;position:sticky;top:64px;z-index:10;background:var(--bg);padding:8px 0}
+.tabs .btn{min-height:44px;padding:6px 4px;font-size:.9rem;flex:1 1 0}
+.chk{width:44px;height:44px;border-radius:12px;border:2px solid var(--line);background:none;color:transparent;font-size:1.3rem;flex:0 0 44px;cursor:pointer}
+.chk.on{background:var(--grn);border-color:var(--grn);color:#062}
+.done .ttl{text-decoration:line-through;opacity:.6}
+input,select,textarea{width:100%;min-height:46px;border-radius:10px;border:1px solid var(--line);background:#0f1526;color:var(--tx);font:inherit;padding:8px 10px}
+textarea{min-height:90px}
+label{display:block;font-size:.85rem;color:var(--mut);margin:8px 0 3px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.imgbox{position:relative;border-radius:12px;overflow:hidden;background:#0f1526;min-height:120px;margin:8px 0}
+.imgbox img{display:block;width:100%;height:auto;cursor:zoom-in}
+.imgbox .ld,.imgbox .fb{padding:14px;font-size:.9rem}
+.thumbs{display:flex;gap:8px;flex-wrap:wrap}.thumbs div{position:relative}.thumbs img{width:92px;height:92px;object-fit:cover;border-radius:10px;cursor:zoom-in}
+.thumbs button{position:absolute;top:-6px;right:-6px;width:28px;height:28px;border-radius:50%;border:0;background:var(--red);color:#fff;font-weight:700}
+#lb{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.95);display:none;overflow:auto;-webkit-overflow-scrolling:touch}
+#lb.on{display:block}#lb img{display:block;min-width:100%;max-width:none;margin:auto}
+#lb .x,#sheet .x{position:fixed;top:calc(env(safe-area-inset-top) + 10px);right:12px;z-index:61;width:48px;height:48px;border-radius:50%;border:0;background:#fff;color:#111;font-size:1.3rem;font-weight:700}
+#sheet{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.7);display:none;align-items:flex-end}
+#sheet.on{display:flex}
+#sheet .in{background:var(--bg);width:100%;max-height:88vh;overflow:auto;border-radius:18px 18px 0 0;padding:14px 14px calc(24px + env(safe-area-inset-bottom));max-width:640px;margin:0 auto}
+.mapwrap{overflow:auto;border-radius:12px;border:1px solid var(--line);background:#000;max-height:62vh;-webkit-overflow-scrolling:touch}
+.mapin{position:relative;width:100%}
+.mapin img{display:block;width:100%;height:auto}
+.pin{position:absolute;transform:translate(-50%,-50%);width:26px;height:26px;border-radius:50%;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;background:rgba(11,15,26,.88);border:2px solid #fff;cursor:pointer;padding:0}
+.pin.sel{width:40px;height:40px;font-size:20px;border:3px solid var(--red);background:#fff;z-index:2;box-shadow:0 0 0 6px rgba(255,59,48,.35)}
+table{width:100%;border-collapse:collapse;font-size:.88rem}
+td,th{border-bottom:1px solid var(--line);padding:6px 4px;text-align:left;vertical-align:top}
+.tx{display:flex;justify-content:space-between;gap:8px;align-items:center;border-bottom:1px solid var(--line);padding:8px 0}
+.bal{font-size:1.35rem;font-weight:700}
+.kv{margin:4px 0}.kv b{color:var(--mut);font-weight:600}
+.pill{font-size:.75rem;background:#101627;border-radius:999px;padding:2px 8px;color:var(--mut)}
+</style>
+</head>
+<body>
+<header>
+  <h1>มะหมาพาซิ่ง 🏎️ ณ สิงคโปร์ อะเกนควัฟพ๋ม 🏁</h1>
+  <div class="flag"></div>
+</header>
+<main>
+  <section class="page on" id="p-now"></section>
+  <section class="page" id="p-plan"></section>
+  <section class="page" id="p-spots"></section>
+  <section class="page" id="p-map"></section>
+  <section class="page" id="p-money"></section>
+  <section class="page" id="p-tips"></section>
+</main>
+<nav>
+  <button data-p="now" class="on"><span>⏱️</span>ตอนนี้</button>
+  <button data-p="plan"><span>🗓️</span>แพลน</button>
+  <button data-p="spots"><span>👀</span>จุดดู F1</button>
+  <button data-p="map"><span>🗺️</span>แผนที่</button>
+  <button data-p="money"><span>💰</span>เงิน</button>
+  <button data-p="tips"><span>🎒</span>เตรียมตัว</button>
+</nav>
+<div id="sheet"><button class="x" aria-label="ปิด">✕</button><div class="in"></div></div>
+<div id="lb"><button class="x" aria-label="ปิด">✕</button><img alt=""></div>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
