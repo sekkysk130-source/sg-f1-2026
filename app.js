@@ -1,6 +1,6 @@
 /* ---------- state (เก็บในเครื่องเท่านั้น) ---------- */
 const KEY = 'f1sg.v1';
-const DEF = { done: {}, pack: {}, notes: {}, sim: null, day: null, sun: '', geoOn: false, ov: {}, custom: [], order: {}, pts: 0, code: '', topic: '', syncAt: 0, dirty: false,
+const DEF = { done: {}, pack: {}, notes: {}, sim: null, day: null, sun: '', geoOn: false, ov: {}, custom: [], order: {}, live: null, pts: 0, code: '', topic: '', syncAt: 0, dirty: false,
   money: { cardType: '', rate: '26.25', cardTHB: '3000', cashTHB: '1000', cardSGD: '', cashSGD: '', est: {}, tx: [] } };
 let S = (() => { try { const j = JSON.parse(localStorage.getItem(KEY) || '{}'); return { ...DEF, ...j, money: { ...DEF.money, ...(j.money || {}) } }; } catch (e) { return JSON.parse(JSON.stringify(DEF)); } })();
 let storeOk = true;
@@ -27,8 +27,12 @@ function rebuild() {
   EVS = []; byId = { ret: RETURN_HOTEL };
   DAYS.forEach(d => {
     let list = d.items.map(it => {
-      const o = S.ov[it.id]; if (!o || it.t !== 'ev') return { ...it };
-      const c = { ...it, _base: it, _ed: true };
+      const o = S.ov[it.id], L = it.t === 'ev' && S.live && S.live.ev && S.live.ev[it.id], chg = L && it.s && (L.s !== L.bs || L.e !== L.be);
+      if (it.t !== 'ev' || (!o && !chg)) return { ...it };
+      const c = { ...it, _base: it }; if (o) c._ed = true;
+      if (chg) { c._live = { was: `${L.bs}–${L.be}`, now: `${L.s}–${L.e}`, note: L.note || '' };
+        if (!(o && (o.s || o.hide))) { c.s = addMin(it.s, diffMin(L.bs, L.s)); c.e = addMin(it.e, diffMin(L.be, L.e)); if (it.endOfficial) c.endOfficial = L.e; c.plan = `${c.s}–${c.e}`; c._timeEd = true; c._auto = true; } else c._live.kept = true; }
+      if (!o) return c;
       if (o.hide) { c._hide = true; return c; }
       if (o.title) c.title = o.title; if (o.place != null && o.place !== '') c.place = o.place; if (o.note) c.unote = o.note;
       if (o.s) { c.s = o.s; c.e = o.e || addMin(o.s, 30); c.plan = `${c.s}–${c.e}`; delete c.endOfficial; c._timeEd = true; }
@@ -71,7 +75,7 @@ function routeCard(r, open) {
   return `<div class="card rt" id="c-${r.id}">
     <div class="row sp"><h3>🚇 ${r.title}</h3>${badge(r.status)}</div>
     <div class="kv">${r.leave ? `ควรออก <span class="time">${r.leave}</span> · ` : ''}ใช้เวลา <b style="color:var(--tx)">${r.total}</b></div>
-    ${r._shift ? `<div class="warn">✏️ เวลาควรออกเลื่อน ${r._shift > 0 ? 'ช้าลง' : 'เร็วขึ้น'} ${Math.abs(r._shift)} นาที ตามเวลากิจกรรมถัดไปที่แก้เอง · เหตุผลและขั้นตอนด้านล่างยังเป็นของแพลนเดิม ถ้าย้ายสถานที่ต้องดูเส้นทางเอง</div>` : ''}
+    ${r._shift ? `<div class="warn">✏️ เวลาควรออกเลื่อน ${r._shift > 0 ? 'ช้าลง' : 'เร็วขึ้น'} ${Math.abs(r._shift)} นาที ตามเวลากิจกรรมถัดไปที่เปลี่ยน · เหตุผลและขั้นตอนด้านล่างยังเป็นของแพลนเดิม ถ้าย้ายสถานที่ต้องดูเส้นทางเอง</div>` : ''}
     <details ${open ? 'open' : ''}><summary>วิธีไปทีละขั้น</summary>
       <div class="mut">${r.from} → ${r.to}</div>
       <div class="grid3"><div><b>เดิน</b>${r.walk}</div><div><b>นั่งรถ</b>${r.ride}</div><div><b>เผื่อคิว/ตรวจบัตร</b>${r.buffer}</div></div>
@@ -96,12 +100,13 @@ function evCard(ev, hl) {
         <div class="time">${ev.plan}</div>
         <h3 class="ttl">${ev.icon || ''} ${esc(ev.title)}</h3>
         <div class="mut">${ev._ed || ev._custom ? esc(ev.place || '') : (ev.place || '')}</div>
-        <div style="margin-top:4px">${ev._custom ? '<span class="bdg b-me">เพิ่มเอง</span>' : badge(ev.status)}${ev._ed ? ' <span class="bdg b-me">แก้เอง</span>' : ''}</div>
+        <div style="margin-top:4px">${ev._custom ? '<span class="bdg b-me">เพิ่มเอง</span>' : badge(ev.status)}${ev._ed ? ' <span class="bdg b-me">แก้เอง</span>' : ''}${ev._live ? ' <span class="bdg" style="background:var(--red);color:#fff">เวลาเปลี่ยน</span>' : ''}</div>
       </div>
     </div>
-    ${ev._timeEd && !ev.official ? `<div class="mut" style="margin-top:6px">เวลาในแพลนตั้งต้น: ${ev._base.plan}</div>` : ''}
+    ${ev._live ? `<div class="warn diff">📡 <b>ทางการเปลี่ยนเวลาเป็น ${ev._live.now}</b> (เดิม ${ev._live.was})${ev._live.note ? ' · ' + ev._live.note : ''}<br>${ev._live.kept ? 'กิจกรรมนี้คุณแก้เวลาเองไว้ จึงไม่ได้เลื่อนให้ ตรวจเวลาในแท็บแก้ไข' : `แพลนเลื่อนตามให้แล้วเป็น ${ev.plan}`}</div>` : ''}
+    ${ev._ed && ev._timeEd && !ev._auto && !ev.official ? `<div class="mut" style="margin-top:6px">เวลาในแพลนตั้งต้น: ${ev._base.plan}</div>` : ''}
     ${ev.unote ? `<div class="off">📝 ${esc(ev.unote)}</div>` : ''}
-    ${o ? `<div class="${differs ? 'warn diff' : 'off'}">${ev._timeEd ? `<b>เวลาที่แก้เอง:</b> ${ev.plan} — งานจริงยังจัดตามเวลาทางการ<br>` : ''}<b>เวลาตามแพลนเดิม:</b> ${ev._base ? ev._base.plan : ev.plan}<br><b>เวลาทางการล่าสุด:</b> ${o.time}${o.note && !(ev._timeEd && /^ตรงกับแพลน/.test(o.note)) ? `<br>${differs ? '⚠️ ' : ''}${o.note}` : ''}</div>` : ''}
+    ${o ? `<div class="${differs ? 'warn diff' : 'off'}">${ev._ed && ev._timeEd && !ev._auto ? `<b>เวลาที่แก้เอง:</b> ${ev.plan} — งานจริงยังจัดตามเวลาทางการ<br>` : ''}<b>เวลาตามแพลนเดิม:</b> ${ev._base ? ev._base.plan : ev.plan}<br><b>เวลาทางการล่าสุด:</b> ${ev._live ? ev._live.now + ' (เปลี่ยนจาก ' + ev._live.was + ')' : o.time}${o.note && !(ev._timeEd && /^ตรงกับแพลน/.test(o.note)) ? `<br>${differs ? '⚠️ ' : ''}${o.note}` : ''}</div>` : ''}
     ${ev.overlap ? `<div class="warn">⚠️ ${ev.overlap}</div>` : ''}
     ${(ev.detail || ev.links || ev.src || ev.maps || ev.spot || ev.pin || ev.ret) ? `<details><summary>รายละเอียด</summary>
       ${ev.detail ? `<p>${ev.detail}</p>` : ''}
@@ -191,13 +196,14 @@ function renderNow() {
     ${next ? `<div class="card hl"><div class="row sp"><div class="mut">ถัดไป · ${next._d.label}</div><span class="pill">${away}</span></div>
       <div class="big">${next.icon} ${esc(next.title)}</div>
       <div><span class="time">${next.plan}</span>${next._ed || next._custom ? ' <span class="bdg b-me">แก้เอง</span>' : ''}</div><div class="mut">${next._ed || next._custom ? esc(next.place) : next.place}</div>
-      ${next.official && !/^ตรงกับแพลน/.test(next.official.note || '') ? `<div class="warn diff">⚠️ ทางการล่าสุด: ${next.official.time}</div>` : ''}
+      ${next._live ? `<div class="warn diff">📡 ทางการเปลี่ยนเวลาเป็น ${next._live.now} (เดิม ${next._live.was})</div>` : next.official && !/^ตรงกับแพลน/.test(next.official.note || '') ? `<div class="warn diff">⚠️ ทางการล่าสุด: ${next.official.time}</div>` : ''}
       ${leaveHtml}
       <div class="row" style="margin-top:10px">
         ${rt ? act('sheet', rt.id, '🚇 ดูวิธีไป', 'pri') : act('goplan', next.id, '🗓️ ดูในแพลน', 'pri')}
         ${nextSpot ? act('spot', nextSpot.spot, '👀 ดูมุมวิว') : ''}
       </div></div>` : ''}
     <div class="row">${act('sheet', 'ret', '🏨 กลับโรงแรม')}${next ? act('goplan', next.id, '🗓️ แพลนทั้งวัน') : act('page', 'plan', '🗓️ แพลนทั้งวัน')}</div>
+    <div id="livebox">${liveHtml()}</div>
     <div id="geo">${geoHtml()}</div>
     <details><summary>ทดลองเลือกวัน/เวลา</summary>
       <div class="row">${[['2026-10-09T19:05', 'ศ. 19:05'], ['2026-10-10T14:20', 'ส. 14:20'], ['2026-10-10T20:45', 'ส. 20:45'], ['2026-10-11T21:30', 'อา. 21:30'], ['2026-10-12T13:00', 'จ. 13:00']].map(p => act('sim', p[0], p[1], 'sm')).join('')}</div>
@@ -275,6 +281,25 @@ async function pairWith(code, creating) {
   pairSheet(); drawSync();
 }
 
+
+/* ---------- เวลาทางการสด (ตัวตรวจบนคลาวด์เขียน official.json ทุก ~10 นาที) ---------- */
+function liveChanges() { const L = S.live; if (!L || !L.ev) return []; return Object.entries(L.ev).filter(([id, v]) => v.s !== v.bs || v.e !== v.be).map(([id, v]) => ({ id, v, it: baseItem(id) })).filter(x => x.it); }
+function liveHtml() {
+  const L = S.live; if (!L) return `<p class="mut">📡 ยังไม่ได้โหลดสถานะเวลาทางการ (ต้องมีเน็ต)</p>`;
+  const ch = liveChanges(), age = Math.round((Date.now() - Date.parse(L.checked)) / 60000), stale = age > 90, bad = !(L.ok && L.ok.ent && L.ok.f1);
+  return `<div class="${ch.length ? 'warn diff' : stale || bad ? 'warn' : 'off'}">📡 <b>เวลาทางการ:</b> ${ch.length ? `เปลี่ยน ${ch.length} รายการ แพลนเลื่อนตามให้แล้ว` : 'ยังไม่มีการเปลี่ยนแปลงจากแพลน'}
+    ${ch.map(c => `<br>• ${c.it.icon} ${c.it.title}: ${c.v.bs}–${c.v.be} → <b>${c.v.s}–${c.v.e}</b>`).join('')}
+    <br><span class="mut">ระบบตรวจล่าสุด ${dayStr(Date.parse(L.checked))} ${hm(Date.parse(L.checked))}${stale ? ' ⚠️ นานกว่า 90 นาทีแล้ว ระบบตรวจอาจหยุด เช็กเว็บทางการเอง' : ''}${bad ? ' ⚠️ รอบล่าสุดอ่านแหล่งข้อมูลได้ไม่ครบ' : ''} · ตรวจ 10 รายการ (คอนเสิร์ต/Fan Forum/เซสชัน F1) ช้ากว่าประกาศจริงได้ 10–30 นาที ไม่จับการดีเลย์หน้างานแบบนาทีต่อนาที</span></div>`;
+}
+async function loadLive() {
+  if (!navigator.onLine) return;
+  try { const r = await fetch('official.json?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return; const j = await r.json(); if (!j || !j.ev) return;
+    const changed = JSON.stringify((S.live || {}).ev) !== JSON.stringify(j.ev); S.live = j; save();
+    if (changed) { rebuild(); const typing = /INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || ''); if ($('#sheet').classList.contains('on') || typing) needRender = true; else { const y = window.scrollY; R[page](); window.scrollTo(0, y); } }
+    else { const e = document.getElementById('livebox'); if (e) e.innerHTML = liveHtml(); }
+  } catch (e) { }
+}
+
 /* ---------- แก้ไขแพลน ---------- */
 function editSheet(id, day) {
   const isNew = !id, it = isNew ? null : byId[id], cu = it && it._custom, base = it && !cu ? baseItem(id) : null;
@@ -326,7 +351,7 @@ function renderEdit() {
       return `<div class="eday">${H[0]} ${d.tab} (${H[1]}) ${H[2]} <span class="mut" style="font-weight:400">· ${d.label}</span></div>
       <div class="elist" data-day="${d.id}">${evs.map((ev, k) => { const bad = ev.s && prev && ev.s < prev; if (ev.s) prev = ev.s; const pl = plainPlace(ev);
         return `<div class="erow ${inCircuit(ev) ? 'sub' : ''}" data-id="${ev.id}"><button class="hdl" aria-label="ลากเพื่อย้าย">≡</button>
-          <div class="etx" data-act="edit" data-v="${ev.id}"><span class="time">${rowTime(ev)}</span> ${ev.icon || ''} ${esc(ev.title)}${pl ? `<span class="mut"> — ${esc(pl)}</span>` : ''}${ev._ed || ev._custom ? ' <span class="bdg b-me">แก้</span>' : ''}${bad ? '<div class="ebad">⚠️ เวลาเริ่มเร็วกว่าบรรทัดบน — แตะเพื่อแก้เวลา</div>' : ''}${ev.unote ? `<div class="mut">📝 ${esc(ev.unote)}</div>` : ''}</div>
+          <div class="etx" data-act="edit" data-v="${ev.id}"><span class="time">${rowTime(ev)}</span> ${ev.icon || ''} ${esc(ev.title)}${pl ? `<span class="mut"> — ${esc(pl)}</span>` : ''}${ev._ed || ev._custom ? ' <span class="bdg b-me">แก้</span>' : ''}${ev._live ? ' <span class="bdg" style="background:var(--red);color:#fff">ทางการเปลี่ยนเวลา</span>' : ''}${bad ? '<div class="ebad">⚠️ เวลาเริ่มเร็วกว่าบรรทัดบน — แตะเพื่อแก้เวลา</div>' : ''}${ev.unote ? `<div class="mut">📝 ${esc(ev.unote)}</div>` : ''}</div>
           <button class="mv" data-act="mv" data-v="${ev.id}|-1" ${k === 0 ? 'disabled' : ''} aria-label="เลื่อนขึ้น">▲</button><button class="mv" data-act="mv" data-v="${ev.id}|1" ${k === evs.length - 1 ? 'disabled' : ''} aria-label="เลื่อนลง">▼</button></div>`; }).join('')}</div>
       ${d.hidden.map(h => `<div class="erow hid"><div class="etx"><s>${h._base.short || (h._base.s ? h._base.s + '-' + h._base.e : '')} ${h.icon || ''} ${h._base.title}</s> <span class="mut">(ไม่ไป)</span></div><button class="btn sm" style="flex:0 0 auto;min-height:36px" data-act="unhide" data-v="${h.id}">แสดง</button></div>`).join('')}
       <div class="row" style="margin:6px 0 4px">${act('add', d.id, '➕ เพิ่มกิจกรรมใน ' + d.tab, 'sm')}</div>`; }).join('')}
@@ -621,8 +646,10 @@ go('now');
 if (S.geoOn) startGeo();
 if (S.topic) syncNow();
 setInterval(() => { if (S.topic && document.visibilityState === 'visible') syncNow(); }, 20000);
+loadLive(); setInterval(() => { if (document.visibilityState === 'visible') loadLive(); }, 120000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') loadLive(); });
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.topic) syncNow(); });
 window.addEventListener('online', () => { if (S.topic) syncNow(); });
-setInterval(() => { if (page === 'now' && !$('details[open]', $('#p-now')) && !$('#sheet').classList.contains('on')) renderNow(); }, 30000);
+setInterval(() => { const free = !$('#sheet').classList.contains('on') && !/INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || ''); if (needRender && free) { needRender = false; const y = window.scrollY; R[page](); window.scrollTo(0, y); } else if (page === 'now' && free && !$('details[open]', $('#p-now'))) renderNow(); }, 30000);
 window.addEventListener('online', offlineLine); window.addEventListener('offline', offlineLine);
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js').then(() => navigator.serviceWorker.ready).then(() => setTimeout(offlineLine, 800)); navigator.serviceWorker.addEventListener('controllerchange', offlineLine); }
