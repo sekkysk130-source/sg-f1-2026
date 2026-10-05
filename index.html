@@ -46,6 +46,13 @@ main{padding:0 14px;max-width:640px;margin:0 auto}
 .b-prev{background:rgba(251,191,36,.16);color:var(--amb);border:1px solid var(--amb)}
 .b-me{background:rgba(255,212,0,.16);color:var(--yel);border:1px solid var(--yel)}
 .edit{width:44px;height:44px;flex:0 0 44px;border-radius:12px;border:1px solid var(--line);background:#222b44;font-size:1.1rem;cursor:pointer}
+.eday{font-weight:700;font-size:1.05rem;margin:18px 0 6px;text-align:center}
+.erow{display:flex;align-items:center;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin:4px 0;padding:2px 4px;overflow-wrap:anywhere}
+.erow.sub{margin-left:18px}.erow.hid{opacity:.6;padding:6px 10px}.erow.drag{border-color:var(--yel);box-shadow:0 6px 18px #000;opacity:.95;position:relative;z-index:5}
+.etx{flex:1;min-width:0;padding:9px 4px;font-size:.92rem;line-height:1.4;cursor:pointer}
+.hdl{flex:0 0 40px;height:44px;border:0;background:none;color:var(--mut);font-size:1.4rem;touch-action:none;cursor:grab}
+.mv{flex:0 0 34px;height:40px;border-radius:9px;border:1px solid var(--line);background:#222b44;color:var(--tx);font-size:.8rem}.mv:disabled{opacity:.25}
+.ebad{color:var(--amb);font-size:.8rem}
 .b-unk{background:rgba(148,163,184,.16);color:var(--gry);border:1px solid var(--gry)}
 .warn{background:rgba(251,191,36,.1);border-left:4px solid var(--amb);padding:8px 10px;border-radius:8px;margin:8px 0;font-size:.92rem}
 .off{background:rgba(52,211,153,.08);border-left:4px solid var(--grn);padding:8px 10px;border-radius:8px;margin:8px 0;font-size:.92rem}
@@ -62,7 +69,7 @@ ol,ul{margin:6px 0;padding-left:22px}li{margin:4px 0}
 .grid3 div{background:#101627;border-radius:10px;padding:6px 8px}
 .grid3 b{display:block;color:var(--mut);font-weight:600;font-size:.74rem}
 nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#0e1322;border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom)}
-nav button{flex:1;height:var(--nav);background:none;border:0;color:var(--mut);font:inherit;font-size:.68rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;padding:0 2px}
+nav button{flex:1;min-width:0;height:var(--nav);background:none;border:0;color:var(--mut);font:inherit;font-size:.62rem;white-space:nowrap;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;padding:0 2px}
 nav button span{font-size:1.4rem;line-height:1}
 nav button.on{color:var(--yel)}
 .tabs{display:flex;gap:6px;position:sticky;top:64px;z-index:10;background:var(--bg);padding:8px 0}
@@ -106,6 +113,7 @@ td,th{border-bottom:1px solid var(--line);padding:6px 4px;text-align:left;vertic
 <main>
   <section class="page on" id="p-now"></section>
   <section class="page" id="p-plan"></section>
+  <section class="page" id="p-edit"></section>
   <section class="page" id="p-spots"></section>
   <section class="page" id="p-map"></section>
   <section class="page" id="p-money"></section>
@@ -114,6 +122,7 @@ td,th{border-bottom:1px solid var(--line);padding:6px 4px;text-align:left;vertic
 <nav>
   <button data-p="now" class="on"><span>⏱️</span>ตอนนี้</button>
   <button data-p="plan"><span>🗓️</span>แพลน</button>
+  <button data-p="edit"><span>✏️</span>แก้ไข</button>
   <button data-p="spots"><span>👀</span>จุดดู F1</button>
   <button data-p="map"><span>🗺️</span>แผนที่</button>
   <button data-p="money"><span>💰</span>เงิน</button>

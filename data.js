@@ -1,6 +1,6 @@
 /* ข้อมูลทริป — แก้ข้อความ/เวลาได้ที่ไฟล์นี้ไฟล์เดียว */
 const CHECKED = '5 ต.ค. 2026';
-const BUILD = '5 ต.ค. 2026 (ฉบับ 5)';
+const BUILD = '5 ต.ค. 2026 (ฉบับ 6)';
 
 const enc = encodeURIComponent;
 const gdir = (o, d, mode) => `https://www.google.com/maps/dir/?api=1&origin=${enc(o)}&destination=${enc(d)}&travelmode=${mode || 'transit'}`;
@@ -78,7 +78,7 @@ const DAYS = [
   {
     id: 'd1', date: '2026-10-09', tab: 'Day 1', label: 'ศุกร์ 9 ต.ค.', title: 'บินเข้า · CORTIS · Sprint Qualifying',
     items: [
-      { id: 'd1-fly', t: 'ev', s: '12:15', e: '14:30', icon: '✈️', title: 'เที่ยวบินไปสิงคโปร์', place: 'BKK → Changi T2',
+      { id: 'd1-fly', t: 'ev', short: '11:15-14:30', s: '12:15', e: '14:30', icon: '✈️', title: 'เที่ยวบินไปสิงคโปร์', place: 'BKK → Changi T2',
         plan: '11:15 (เวลาไทย) – 14:30 (เวลาสิงคโปร์)', status: 'tip',
         detail: 'เวลาออก 11:15 เป็นเวลาไทย · เวลาถึง 14:30 เป็นเวลาสิงคโปร์ (เร็วกว่าไทย 1 ชม.) ช่วงนี้คือเวลาบิน ไม่ใช่เวลาที่ต้องอยู่สนามบิน<br>ก่อนบิน: กรอก <b>SG Arrival Card</b> ออนไลน์ล่วงหน้า (ทำได้ภายใน 3 วันก่อนถึง) และโหลดบัตร F1 ลงแอป Singapore GP ให้เรียบร้อย',
         src: [SRC.sgac, SRC.ticketing] },
@@ -314,7 +314,7 @@ const DAYS = [
         status: 'tip', src: [SRC.ltaNews], maps: gdir(HOTEL, 'Changi Airport Terminal 2, Singapore') },
       { id: 'd4-ci', t: 'ev', s: '15:00', e: '16:00', icon: '🛄', title: 'ช่วง Check-in + Boarding (ตามแพลนต้นฉบับ)', place: 'Changi Airport T2', plan: '15:00–16:00', status: 'unk',
         detail: 'แพลนเดิมเขียนช่วงนี้ถึง 16:00 แต่<b>เวลา Boarding จริงขึ้นกับเที่ยวบิน</b> เครื่องออก 18:15 ปกติเรียกขึ้นเครื่องช้ากว่า 16:00 มาก — ดูเวลาและประตูบน boarding pass และจอสนามบิน อย่ายึด 16:00' },
-      { id: 'd4-fly', t: 'ev', s: '18:15', e: '20:35', icon: '✈️', title: 'เที่ยวบินกลับ BKK', place: 'Changi T2 → BKK', plan: '18:15 (เวลาสิงคโปร์) – 19:35 (เวลาไทย)', status: 'tip',
+      { id: 'd4-fly', t: 'ev', short: '18:15-19:35', s: '18:15', e: '20:35', icon: '✈️', title: 'เที่ยวบินกลับ BKK', place: 'Changi T2 → BKK', plan: '18:15 (เวลาสิงคโปร์) – 19:35 (เวลาไทย)', status: 'tip',
         detail: 'เวลาออก 18:15 เป็นเวลาสิงคโปร์ · เวลาถึง 19:35 เป็นเวลาไทย · ช่วงนี้คือเวลาบิน ไม่ใช่เวลาที่ต้องอยู่สนามบิน' },
     ],
   },

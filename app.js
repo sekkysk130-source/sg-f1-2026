@@ -1,6 +1,6 @@
 /* ---------- state (เก็บในเครื่องเท่านั้น) ---------- */
 const KEY = 'f1sg.v1';
-const DEF = { done: {}, pack: {}, notes: {}, sim: null, day: null, sun: '', geoOn: false, ov: {}, custom: [], pts: 0, code: '', topic: '', syncAt: 0, dirty: false,
+const DEF = { done: {}, pack: {}, notes: {}, sim: null, day: null, sun: '', geoOn: false, ov: {}, custom: [], order: {}, pts: 0, code: '', topic: '', syncAt: 0, dirty: false,
   money: { cardType: '', rate: '26.25', cardTHB: '3000', cashTHB: '1000', cardSGD: '', cashSGD: '', est: {}, tx: [] } };
 let S = (() => { try { const j = JSON.parse(localStorage.getItem(KEY) || '{}'); return { ...DEF, ...j, money: { ...DEF.money, ...(j.money || {}) } }; } catch (e) { return JSON.parse(JSON.stringify(DEF)); } })();
 let storeOk = true;
@@ -22,7 +22,7 @@ let EVS = [], byId = {}, TRIP_S = 0, TRIP_E = 0;
 const addMin = (hm0, m) => { const [h, mi] = hm0.split(':').map(Number); let x = ((h * 60 + mi + m) % 1440 + 1440) % 1440; return String(Math.floor(x / 60)).padStart(2, '0') + ':' + String(x % 60).padStart(2, '0'); };
 const diffMin = (a, b) => { const f = x => { const [h, m] = x.split(':').map(Number); return h * 60 + m; }; return f(b) - f(a); };
 const baseItem = id => { for (const d of DAYS) for (const it of d.items) if (it.id === id) return it; return null; };
-const editCount = () => Object.keys(S.ov).length + S.custom.length;
+const editCount = () => Object.keys(S.ov).length + S.custom.length + Object.keys(S.order).length;
 function rebuild() {
   EVS = []; byId = { ret: RETURN_HOTEL };
   DAYS.forEach(d => {
@@ -45,6 +45,13 @@ function rebuild() {
       list.splice(pos, 0, it);
     });
     d.hidden = list.filter(x => x._hide && x.t === 'ev'); d.eff = list.filter(x => !x._hide);
+    const ord = S.order[d.id];
+    if (ord && ord.length) { // จัดลำดับตามที่ลากไว้ — การ์ดเส้นทาง/ช่วงพักเกาะไปกับกิจกรรมที่อยู่ถัดจากมัน
+      const groups = []; let pend = []; d.eff.forEach(it => { if (it.t === 'ev') { groups.push({ id: it.id, items: [...pend, it] }); pend = []; } else pend.push(it); });
+      const res = groups.filter(g => ord.includes(g.id)).sort((x, y) => ord.indexOf(x.id) - ord.indexOf(y.id));
+      groups.forEach((g, k) => { if (ord.includes(g.id)) return; const prev = k > 0 ? res.findIndex(r => r.id === groups[k - 1].id) : -1; res.splice(prev + 1, 0, g); });
+      d.eff = res.flatMap(g => g.items).concat(pend);
+    }
     d.eff.forEach((it, k) => { it._d = d; it._i = k; byId[it.id] = it; if (it.t === 'ev' && it.s) { it._S = ts(d.date, it.s); it._E = ts(d.date, it.endOfficial || it.e); if (it._E <= it._S) it._E += 86400000; EVS.push(it); } });
   });
   EVS.sort((x, y) => x._S - y._S);
@@ -211,9 +218,7 @@ function renderPlan() {
   $('#p-plan').innerHTML = `<div class="tabs">${DAYS.map(x => `<button class="btn ${x.id === id ? 'on' : ''}" data-act="day" data-v="${x.id}">${x.tab}</button>`).join('')}</div>
     <h2 style="margin-top:4px">${d.label}</h2><div class="mut">${d.title}</div>
     <div class="mut" style="margin-top:6px">${Object.keys(ST).map(k => badge(k)).join(' ')}</div>
-    <div class="row" style="margin-top:10px">${act('add', d.id, '➕ เพิ่มกิจกรรม', 'sm pri')}</div>
-    <div id="syncbox">${syncHtml()}</div>
-    ${editCount() ? `<div class="off">✏️ แพลนในเครื่องนี้ถูกแก้เอง ${editCount()} จุด ${S.topic ? '(ซิงก์กับอีกเครื่อง)' : '(เก็บในเครื่องนี้)'} ${act('resetall', '', 'คืนค่าแพลนตั้งต้นทั้งหมด', 'sm')}</div>` : ''}
+    ${editCount() ? `<div class="off">✏️ แพลนนี้ถูกแก้เอง ${editCount()} จุด ${act('page', 'edit', 'ไปหน้าแก้ไข', 'sm')}</div>` : `<div class="mut" style="margin-top:8px">อยากเปลี่ยนเวลา สลับลำดับ หรือเพิ่มกิจกรรม ไปที่แท็บ ✏️ แก้ไข</div>`}
     ${d.eff.map(it => it.t === 'rt' ? routeCard(it) : it.t === 'rest' ? restCard(it) : evCard(it, it.id === nextId)).join('')}
     ${d.hidden.length ? `<div class="card"><h3>🙈 กิจกรรมที่ซ่อนไว้ (ไม่ไป)</h3>${d.hidden.map(h => `<div class="tx"><div>${h.icon || ''} ${h._base.title}<div class="mut">${h._base.plan}</div></div><button class="btn sm" style="flex:0 0 auto" data-act="unhide" data-v="${h.id}">แสดงอีกครั้ง</button></div>`).join('')}</div>` : ''}`;
 }
@@ -223,13 +228,13 @@ function renderPlan() {
 /* ---------- ซิงก์ 2 เครื่อง (แพลนที่แก้ + เช็กว่าทำแล้ว + ตัวเลือก A/B) ---------- */
 const NTFY = 'https://ntfy.sh/';
 let syncErr = '', needRender = false, syncBusy = false;
-const syncDoc = () => ({ v: 1, ts: S.pts, ov: S.ov, custom: S.custom, done: Object.fromEntries(Object.entries(S.done).filter(e => e[1])), sun: S.sun });
+const syncDoc = () => ({ v: 1, ts: S.pts, ov: S.ov, custom: S.custom, order: S.order, done: Object.fromEntries(Object.entries(S.done).filter(e => e[1])), sun: S.sun });
 function touch() { S.pts = Date.now(); S.dirty = true; save(); if (S.topic) syncNow(); }
 async function topicFor(code) { const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('f1sg-2026|' + code)); return 'f1sg26-' + [...new Uint8Array(h)].slice(0, 16).map(b => b.toString(16).padStart(2, '0')).join(''); }
 const newCode = () => { const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789', r = crypto.getRandomValues(new Uint8Array(6)); return [...r].map(x => A[x % A.length]).join(''); };
 async function pushSync() { const body = JSON.stringify(syncDoc()); if (new Blob([body]).size > 3900) { syncErr = 'แก้แพลนเยอะเกินกว่าจะซิงก์ได้ ลองลบโน้ตยาว ๆ ในกิจกรรม'; return false; } const r = await fetch(NTFY + S.topic, { method: 'POST', body }); if (!r.ok) throw new Error('push ' + r.status); S.dirty = false; return true; }
 function applyRemote(j) {
-  S.ov = j.ov || {}; S.custom = j.custom || []; S.done = j.done || {}; S.sun = j.sun || ''; S.pts = j.ts; S.dirty = false; save(); rebuild();
+  S.ov = j.ov || {}; S.custom = j.custom || []; S.order = j.order || {}; S.done = j.done || {}; S.sun = j.sun || ''; S.pts = j.ts; S.dirty = false; save(); rebuild();
   const typing = /INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '');
   if ($('#sheet').classList.contains('on') || typing) needRender = true; else { const y = window.scrollY; R[page](); window.scrollTo(0, y); }
 }
@@ -253,9 +258,9 @@ function syncHtml() {
 function drawSync() { const e = document.getElementById('syncbox'); if (e) e.innerHTML = syncHtml(); }
 function pairSheet() {
   $('#sheet .in').innerHTML = S.topic ? `<div class="card"><h3>🔗 ซิงก์ 2 เครื่อง</h3><p>รหัสของทริปนี้</p><div class="big time" style="letter-spacing:.2em;text-align:center">${S.code}</div>
-      <p class="mut">อีกเครื่อง: เปิดเว็บ → หน้าแพลน → “เชื่อม 2 เครื่อง” → ใส่รหัสนี้ ทำครั้งเดียว</p>
+      <p class="mut">อีกเครื่อง: เปิดเว็บ → แท็บ ✏️ แก้ไข → “เชื่อม 2 เครื่อง” → ใส่รหัสนี้ ทำครั้งเดียว</p>
       <div class="row">${act('syncgo', '', '🔄 ซิงก์ตอนนี้', 'pri')}${act('unpair', '', 'เลิกเชื่อม', 'sm')}</div>
-      <p class="mut">สิ่งที่ตามกัน: กิจกรรมที่แก้/เพิ่ม/ซ่อน, เช็ก “ทำแล้ว”, ตัวเลือก A/B วันอาทิตย์ · สิ่งที่แยกต่อเครื่อง: โน้ต รายจ่าย ภาพ ของที่ต้องเตรียม ตำแหน่ง<br>เว็บเช็กทุก ~20 วินาทีตอนเปิดอยู่และมีเน็ต ถ้าสองเครื่องแก้พร้อมกัน เครื่องที่กดบันทึกทีหลังชนะ<br>ข้อมูลที่ซิงก์ส่งผ่านบริการ ntfy.sh และเก็บไว้ 12 ชั่วโมง ใครไม่รู้รหัสจะเข้าไม่ถึง</p></div>`
+      <p class="mut">สิ่งที่ตามกัน: กิจกรรมที่แก้/เพิ่ม/ซ่อน, ลำดับที่สลับ, เช็ก “ทำแล้ว”, ตัวเลือก A/B วันอาทิตย์ · สิ่งที่แยกต่อเครื่อง: โน้ต รายจ่าย ภาพ ของที่ต้องเตรียม ตำแหน่ง<br>เว็บเช็กทุก ~20 วินาทีตอนเปิดอยู่และมีเน็ต ถ้าสองเครื่องแก้พร้อมกัน เครื่องที่กดบันทึกทีหลังชนะ<br>ข้อมูลที่ซิงก์ส่งผ่านบริการ ntfy.sh และเก็บไว้ 12 ชั่วโมง ใครไม่รู้รหัสจะเข้าไม่ถึง</p></div>`
     : `<div class="card"><h3>🔗 เชื่อม 2 เครื่อง</h3>
       <p><b>เครื่องแรก</b> — กดสร้างรหัส แล้วบอกรหัสให้อีกคน</p><div class="row">${act('paircreate', '', '✨ สร้างรหัส', 'pri')}</div>
       <hr style="border-color:var(--line);margin:16px 0">
@@ -268,7 +273,7 @@ async function pairWith(code, creating) {
   if (!navigator.onLine) { alert('ต้องมีอินเทอร์เน็ตตอนเชื่อม'); return; }
   S.code = code; S.topic = await topicFor(code); if (creating && !S.pts) S.pts = Date.now(); S.dirty = creating; save();
   await syncNow(); if (syncErr && !S.syncAt) { alert('เชื่อมไม่สำเร็จ ลองใหม่ตอนสัญญาณดี'); S.code = ''; S.topic = ''; save(); return; }
-  pairSheet(); if (page === 'plan') drawSync();
+  pairSheet(); drawSync();
 }
 
 /* ---------- แก้ไขแพลน ---------- */
@@ -289,7 +294,7 @@ function editSheet(id, day) {
     <p class="mut">บันทึกแล้วหน้าแพลนและการ์ด “ตอนนี้ / ถัดไป” เปลี่ยนตามทันที · ถ้าเชื่อม 2 เครื่องไว้ อีกเครื่องจะเปลี่ยนตามเองภายในราว 20 วินาทีเมื่อมีเน็ต · เวลาทางการของงานแข่งและคอนเสิร์ตไม่เปลี่ยนตามที่แก้</p></div>`;
   $('#sheet').classList.add('on');
 }
-function afterEdit(dayId, id) { touch(); rebuild(); closeSheet(); if (dayId) S.day = dayId; go('plan', true); if (id) scrollToEl('c-' + id); }
+function afterEdit(dayId, id) { touch(); rebuild(); closeSheet(); if (page === 'edit') { const y = window.scrollY; renderEdit(); window.scrollTo(0, y); return; } if (dayId) S.day = dayId; go('plan', true); if (id) scrollToEl('c-' + id); }
 const packPlan = () => btoa(unescape(encodeURIComponent(JSON.stringify({ v: 1, ov: S.ov, custom: S.custom })))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 function unpackPlan(txt) { try { let c = String(txt).trim(); const m = c.match(/plan=([A-Za-z0-9_-]+)/); if (m) c = m[1]; c = c.replace(/-/g, '+').replace(/_/g, '/'); const j = JSON.parse(decodeURIComponent(escape(atob(c)))); if (j && j.v === 1 && typeof j.ov === 'object' && Array.isArray(j.custom)) return j; } catch (e) { } return null; }
 function applyPlan(j) { S.ov = j.ov; S.custom = j.custom; touch(); rebuild(); closeSheet(); go('plan'); }
@@ -307,6 +312,39 @@ function recvSheet() {
     <div class="row" style="margin-top:8px">${act('rcgo', '', 'ใช้แพลนนี้', 'pri')}</div><p class="mut">จะแทนที่การแก้แพลนในเครื่องนี้ทั้งหมด</p></div>`;
   $('#sheet').classList.add('on');
 }
+
+
+/* ---------- แท็บ แก้ไข: รายการแบบข้อความ ลากสลับลำดับได้ ---------- */
+const DAYHEAD = { d1: ['🌈', '09', '🚗'], d2: ['🌻', '10', '💐'], d3: ['⛅️', '11', '🌸'], d4: ['✨', '12', '✈️'] };
+const rowTime = ev => ev.short && !ev._timeEd ? ev.short : ev.s ? `${ev.s}-${ev.e}` : '';
+const plainPlace = ev => (ev.place || '').replace(/<[^>]+>/g, '');
+const inCircuit = ev => !!(ev.pin || ev.official);
+function renderEdit() {
+  $('#p-edit').innerHTML = `<h2>แก้ไขแพลน</h2>
+    <p class="mut">แตะบรรทัดเพื่อแก้เวลา ชื่อ หรือซ่อน · จับ <b>≡</b> ลากขึ้นลงเพื่อสลับลำดับ หรือกด ▲ ▼ · แก้แล้วหน้าแพลนเปลี่ยนตามทันที</p>
+    <div id="syncbox">${syncHtml()}</div>
+    ${DAYS.map(d => { const H = DAYHEAD[d.id], evs = d.eff.filter(x => x.t === 'ev'); let prev = '';
+      return `<div class="eday">${H[0]} ${d.tab} (${H[1]}) ${H[2]} <span class="mut" style="font-weight:400">· ${d.label}</span></div>
+      <div class="elist" data-day="${d.id}">${evs.map((ev, k) => { const bad = ev.s && prev && ev.s < prev; if (ev.s) prev = ev.s; const pl = plainPlace(ev);
+        return `<div class="erow ${inCircuit(ev) ? 'sub' : ''}" data-id="${ev.id}"><button class="hdl" aria-label="ลากเพื่อย้าย">≡</button>
+          <div class="etx" data-act="edit" data-v="${ev.id}"><span class="time">${rowTime(ev)}</span> ${ev.icon || ''} ${esc(ev.title)}${pl ? `<span class="mut"> — ${esc(pl)}</span>` : ''}${ev._ed || ev._custom ? ' <span class="bdg b-me">แก้</span>' : ''}${bad ? '<div class="ebad">⚠️ เวลาเริ่มเร็วกว่าบรรทัดบน — แตะเพื่อแก้เวลา</div>' : ''}${ev.unote ? `<div class="mut">📝 ${esc(ev.unote)}</div>` : ''}</div>
+          <button class="mv" data-act="mv" data-v="${ev.id}|-1" ${k === 0 ? 'disabled' : ''} aria-label="เลื่อนขึ้น">▲</button><button class="mv" data-act="mv" data-v="${ev.id}|1" ${k === evs.length - 1 ? 'disabled' : ''} aria-label="เลื่อนลง">▼</button></div>`; }).join('')}</div>
+      ${d.hidden.map(h => `<div class="erow hid"><div class="etx"><s>${h._base.short || (h._base.s ? h._base.s + '-' + h._base.e : '')} ${h.icon || ''} ${h._base.title}</s> <span class="mut">(ไม่ไป)</span></div><button class="btn sm" style="flex:0 0 auto;min-height:36px" data-act="unhide" data-v="${h.id}">แสดง</button></div>`).join('')}
+      <div class="row" style="margin:6px 0 4px">${act('add', d.id, '➕ เพิ่มกิจกรรมใน ' + d.tab, 'sm')}</div>`; }).join('')}
+    <div class="card"><div class="row">${act('copytxt', '', '📋 คัดลอกแพลนเป็นข้อความ', 'sm')}${editCount() ? act('resetall', '', '↩️ คืนค่าแพลนตั้งต้น', 'sm') : ''}</div>
+      <p class="mut">การสลับลำดับเปลี่ยนแค่ลำดับที่แสดง เวลาไม่เปลี่ยนตาม ถ้าเวลาไม่เรียงจะมี ⚠️ ขึ้น · การ์ด “ตอนนี้ / ถัดไป” ยึดตามเวลา · การ์ดเส้นทางจะย้ายตามกิจกรรมที่มันพาไป · เวลาทางการของงานแข่งและคอนเสิร์ตไม่เปลี่ยนตามที่แก้</p></div>`;
+}
+function planText() {
+  return 'มะหมาพาซิ่ง 🏎️ ณ สิงคโปร์ อะเกนควัฟพ๋ม 🏁\n\n' + DAYS.map(d => { const H = DAYHEAD[d.id];
+    return `${H[0]} ${d.tab} (${H[1]})${H[2]}\n\n` + d.eff.filter(x => x.t === 'ev').map(ev => { const pl = plainPlace(ev), t = rowTime(ev); return `${inCircuit(ev) ? '    ' : ''}* ${t ? t + ' ' : ''}${ev.icon || ''} ${ev.title}${pl ? ' — ' + pl : ''}`; }).join('\n'); }).join('\n\n');
+}
+let drag = null;
+document.addEventListener('pointerdown', e => { const h = e.target.closest('.hdl'); if (!h) return; const row = h.closest('.erow'); drag = { row, list: row.parentElement }; row.classList.add('drag'); try { h.setPointerCapture(e.pointerId); } catch (x) { } e.preventDefault(); });
+document.addEventListener('pointermove', e => { if (!drag) return; const rows = [...drag.list.querySelectorAll('.erow')].filter(r => r !== drag.row); let before = null; for (const r of rows) { const b = r.getBoundingClientRect(); if (e.clientY < b.top + b.height / 2) { before = r; break; } }
+  if (before) drag.list.insertBefore(drag.row, before); else drag.list.appendChild(drag.row);
+  if (e.clientY < 100) window.scrollBy(0, -14); else if (e.clientY > innerHeight - 120) window.scrollBy(0, 14); });
+const endDrag = () => { if (!drag) return; const day = drag.list.dataset.day; S.order[day] = [...drag.list.querySelectorAll('.erow')].map(r => r.dataset.id); drag.row.classList.remove('drag'); drag = null; touch(); rebuild(); const y = window.scrollY; renderEdit(); window.scrollTo(0, y); };
+document.addEventListener('pointerup', endDrag); document.addEventListener('pointercancel', endDrag);
 
 /* ---------- ภาพ ---------- */
 function imgBox(sp) {
@@ -496,7 +534,7 @@ function offlineLine() {
 }
 
 /* ---------- navigation / events ---------- */
-const R = { now: renderNow, plan: renderPlan, spots: renderSpots, map: renderMap, money: renderMoney, tips: renderTips };
+const R = { now: renderNow, plan: renderPlan, edit: renderEdit, spots: renderSpots, map: renderMap, money: renderMoney, tips: renderTips };
 let page = 'now';
 function go(p, keepScroll) {
   page = p; document.querySelectorAll('.page').forEach(e => e.classList.toggle('on', e.id === 'p-' + p));
@@ -508,7 +546,7 @@ const closeSheet = () => $('#sheet').classList.remove('on');
 function scrollToEl(id) { const e = document.getElementById(id); if (e) { e.scrollIntoView({ block: 'start' }); window.scrollBy(0, -130); const d = e.querySelector('details'); if (d) d.open = true; } }
 
 document.addEventListener('click', async ev => {
-  const nb = ev.target.closest('nav button'); if (nb) { if (nb.dataset.p === 'plan') S.day = null; go(nb.dataset.p); return; }
+  const nb = ev.target.closest('nav button'); if (nb) { if (nb.dataset.p === 'plan') S.day = null; closeSheet(); go(nb.dataset.p); return; }
   if (ev.target.closest('#lb')) { $('#lb').classList.remove('on'); return; }
   if (ev.target.id === 'sheet' || ev.target.closest('#sheet .x')) { closeSheet(); return; }
   const b = ev.target.closest('[data-act]'); if (!b) return;
@@ -535,12 +573,14 @@ document.addEventListener('click', async ev => {
   else if (a === 'edhide') { S.ov[v] = { hide: true }; afterEdit(); }
   else if (a === 'unhide' || a === 'edreset') { delete S.ov[v]; afterEdit(null, v); }
   else if (a === 'eddel') { S.custom = S.custom.filter(c => c.id !== v); delete S.done[v]; afterEdit(); }
-  else if (a === 'resetall') { if (confirm('คืนค่าแพลนตั้งต้นทั้งหมด? สิ่งที่แก้และกิจกรรมที่เพิ่มเองจะหายไป (ถ้าเชื่อม 2 เครื่องไว้ จะหายทั้งสองเครื่อง)')) { S.ov = {}; S.custom = []; afterEdit(); } }
+  else if (a === 'resetall') { if (confirm('คืนค่าแพลนตั้งต้นทั้งหมด? สิ่งที่แก้ ลำดับที่สลับ และกิจกรรมที่เพิ่มเองจะหายไป (ถ้าเชื่อม 2 เครื่องไว้ จะหายทั้งสองเครื่อง)')) { S.ov = {}; S.custom = []; S.order = {}; afterEdit(); } }
+  else if (a === 'mv') { const [id, dir] = v.split('|'), d = byId[id]._d, ids = d.eff.filter(x => x.t === 'ev').map(x => x.id), k = ids.indexOf(id), n = k + (+dir); if (n < 0 || n >= ids.length) return; [ids[k], ids[n]] = [ids[n], ids[k]]; S.order[d.id] = ids; afterEdit(); }
+  else if (a === 'copytxt') { const t = planText(); try { await navigator.clipboard.writeText(t); b.textContent = '✅ คัดลอกแล้ว'; } catch (e) { $('#sheet .in').innerHTML = `<div class="card"><h3>📋 แพลนเป็นข้อความ</h3><textarea style="min-height:60vh;font-size:.85rem">${esc(t)}</textarea></div>`; $('#sheet').classList.add('on'); } }
   else if (a === 'pair') pairSheet();
   else if (a === 'paircreate') { b.disabled = true; await pairWith(newCode(), true); }
   else if (a === 'pairjoin') { const c = $('#pair-code').value.trim().toUpperCase(); if (c.length !== 6) { $('#pair-code').focus(); return; } b.disabled = true; await pairWith(c, false); }
   else if (a === 'syncgo') { await syncNow(true); pairSheet(); }
-  else if (a === 'unpair') { if (confirm('เลิกเชื่อมเครื่องนี้? แพลนในเครื่องยังอยู่ แต่จะไม่ตามอีกเครื่องแล้ว')) { S.code = ''; S.topic = ''; S.syncAt = 0; syncErr = ''; save(); closeSheet(); if (page === 'plan') renderPlan(); } }
+  else if (a === 'unpair') { if (confirm('เลิกเชื่อมเครื่องนี้? แพลนในเครื่องยังอยู่ แต่จะไม่ตามอีกเครื่องแล้ว')) { S.code = ''; S.topic = ''; S.syncAt = 0; syncErr = ''; save(); closeSheet(); R[page](); } }
   else if (a === 'share') shareSheet();
   else if (a === 'recv') recvSheet();
   else if (a === 'shcopy') { const t = $('#sh-link'); t.select(); try { await navigator.clipboard.writeText(t.value); b.textContent = '✅ คัดลอกแล้ว'; } catch (e) { document.execCommand('copy'); b.textContent = '✅ คัดลอกแล้ว'; } }
