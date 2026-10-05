@@ -1,6 +1,6 @@
 /* ---------- state (เก็บในเครื่องเท่านั้น) ---------- */
 const KEY = 'f1sg.v1';
-const DEF = { done: {}, pack: {}, notes: {}, sim: null, day: null, sun: '',
+const DEF = { done: {}, pack: {}, notes: {}, sim: null, day: null, sun: '', geoOn: false,
   money: { cardType: '', rate: '26.25', cardTHB: '3000', cashTHB: '1000', cardSGD: '', cashSGD: '', est: {}, tx: [] } };
 let S = (() => { try { const j = JSON.parse(localStorage.getItem(KEY) || '{}'); return { ...DEF, ...j, money: { ...DEF.money, ...(j.money || {}) } }; } catch (e) { return JSON.parse(JSON.stringify(DEF)); } })();
 let storeOk = true;
@@ -72,6 +72,59 @@ function evCard(ev, hl) {
 }
 const restCard = r => `<div class="card rest"><div class="row sp"><h3>🧃 ${r.title}</h3>${badge(r.status)}</div><p>${r.detail}</p>${srcs(r.src)}</div>`;
 
+
+/* ---------- ตำแหน่งของฉัน (คำนวณในเครื่องเท่านั้น) ---------- */
+const geo = { pos: null, err: '', wid: null, busy: false };
+const dist = (a, b) => { const R = 6371000, r = x => x * Math.PI / 180, dl = r(b[0] - a[0]), dn = r(b[1] - a[1]); const h = Math.sin(dl / 2) ** 2 + Math.cos(r(a[0])) * Math.cos(r(b[0])) * Math.sin(dn / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
+const dtxt = m => m >= 1000 ? (m / 1000).toFixed(m >= 10000 ? 0 : 1) + ' กม.' : Math.round(m / 10) * 10 + ' ม.';
+const evLoc = ev => { if (!ev) return null; if (ev.id === 'd3-race' || ev.id === 'd3-parade' || ev.id === 'd3-anthem') return S.sun === 'A' ? LOCS.t13 : S.sun === 'B' ? LOCS.memorial : null; return LOCS[EVLOC[ev.id]] || null; };
+function startGeo() {
+  if (!('geolocation' in navigator)) { geo.err = 'เบราว์เซอร์นี้อ่านตำแหน่งไม่ได้'; drawGeo(); return; }
+  if (geo.wid != null) navigator.geolocation.clearWatch(geo.wid);
+  geo.busy = true; geo.err = ''; drawGeo();
+  geo.wid = navigator.geolocation.watchPosition(p => { geo.busy = false; geo.err = ''; geo.pos = { p: [p.coords.latitude, p.coords.longitude], acc: p.coords.accuracy, t: p.timestamp }; drawGeo(); },
+    e => { geo.busy = false; geo.err = e.code === 1 ? 'ยังไม่ได้อนุญาตให้ใช้ตำแหน่ง — เปิดสิทธิ์ตำแหน่งของเว็บนี้ในการตั้งค่าเบราว์เซอร์แล้วกดใหม่' : 'หาตำแหน่งไม่ได้ตอนนี้ (สัญญาณ GPS อ่อน หรืออยู่ในอาคาร/ใต้ดิน) ลองใหม่อีกครั้ง'; if (e.code === 1) { S.geoOn = false; save(); } drawGeo(); },
+    { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 });
+}
+function stopGeo() { if (geo.wid != null) navigator.geolocation.clearWatch(geo.wid); geo.wid = null; geo.pos = null; geo.busy = false; geo.err = ''; S.geoOn = false; save(); drawGeo(); }
+function geoHtml() {
+  if (!S.geoOn && !geo.pos) return `<div class="card"><h3>📍 ตำแหน่งของฉัน</h3><p class="mut">กดเพื่อให้เว็บอ่านตำแหน่งแล้วเทียบกับแพลนว่าตอนนี้อยู่ที่ไหน ห่างจุดหมายถัดไปเท่าไร ตำแหน่งใช้คำนวณในเครื่องนี้เท่านั้น ไม่ถูกส่งหรือบันทึกไว้ที่ไหน</p>${geo.err ? `<div class="warn">⚠️ ${geo.err}</div>` : ''}<div class="row">${act('geo', '', '📍 ใช้ตำแหน่งของฉัน', 'pri')}</div></div>`;
+  if (!geo.pos) return `<div class="card"><h3>📍 ตำแหน่งของฉัน</h3>${geo.err ? `<div class="warn">⚠️ ${geo.err}</div>` : '<p>⏳ กำลังหาตำแหน่ง…</p>'}<div class="row">${act('geo', '', 'ลองใหม่', 'sm')}${act('geooff', '', 'ปิดการใช้ตำแหน่ง', 'sm')}</div></div>`;
+  const me = geo.pos.p, t = now();
+  const near = Object.values(LOCS).map(l => ({ l, d: dist(me, l.p) })).sort((x, y) => x.d - y.d)[0];
+  const inSG = dist(me, LOCS.padang.p) < 60000;
+  const cur = EVS.filter(e => e._S <= t && t < e._E), next = EVS.find(e => e._S > t);
+  let h = `<div class="card"><div class="row sp"><h3>📍 ตำแหน่งของฉัน</h3><span class="pill">±${Math.round(geo.pos.acc)} ม. · ${hm(geo.pos.t)}</span></div>`;
+  h += `<div class="big" style="font-size:1.2rem">${near.d < 150 + geo.pos.acc ? 'อยู่ที่' : 'ใกล้'} ${near.l.n}</div><div class="mut">ห่างราว ${dtxt(near.d)}${near.l.a ? ' (พิกัดจุดนี้เป็นค่าประมาณ)' : ''}</div>`;
+  if (S.sim != null) h += `<div class="warn">🧪 กำลังใช้เวลาทดลอง แต่ตำแหน่งเป็นตำแหน่งจริงตอนนี้</div>`;
+  if (!inSG) h += `<div class="off">ยังไม่ได้อยู่ในสิงคโปร์ (ห่าง Padang ราว ${dtxt(dist(me, LOCS.padang.p))}) การเทียบเวลาเดินจะเริ่มเมื่อถึงสิงคโปร์</div>`;
+  else {
+    cur.forEach(e => { const L = evLoc(e); if (!L) return; const d = dist(me, L.p); h += d < 120 + geo.pos.acc ? `<div class="off">✅ ตรงกับแพลนตอนนี้: ${e.icon} ${e.title} ที่ ${L.n}</div>` : `<div class="warn">ตามแพลนตอนนี้คือ ${e.icon} <b>${e.title}</b> ที่ ${L.n} — คุณอยู่ห่างราว ${dtxt(d)}</div>`; });
+    if (next) {
+      const L = evLoc(next), mins = Math.round((next._S - t) / 60000), rt = routeBefore(next);
+      if (!L) h += `<div class="mut" style="margin-top:6px">ถัดไป ${next.icon} ${next.title} — ยังไม่ได้ระบุสถานที่${next.id.startsWith('d3-') ? ' (เลือก A/B ในหน้า “จุดดู F1” ก่อน)' : ''} จึงเทียบระยะไม่ได้</div>`;
+      else if (mins <= 720) {
+        const d = dist(me, L.p);
+        if (d < 150 + geo.pos.acc) h += `<div class="off">✅ ถึงจุดหมายถัดไปแล้ว: ${next.icon} ${next.title} (${L.n}) เริ่ม ${next.s}</div>`;
+        else if (d <= 1500) {
+          const w = Math.ceil(d * 1.4 / 70);
+          let mmv = rt && rt.mm; if (rt && rt.id === 'd3-r3' && S.sun === 'A') mmv = [30, 45];
+          const usePlan = mmv && d > 400 && mmv[0] > w, eff = usePlan ? mmv[0] : w, slack = mins - eff;
+          const tight = usePlan && mins < mmv[1] && slack >= 0;
+          h += `<div class="${slack >= 15 && !tight ? 'off' : 'warn' + (slack < 0 ? ' diff' : '')}">ถึง <b>${L.n}</b> ราว ${dtxt(d)} (เส้นตรง) · เดินเส้นตรงประมาณ ${w} นาที${usePlan ? ` · แต่แพลนประเมินช่วงนี้ <b>${mmv[0]}–${mmv[1]} นาที</b> (รวมทางอ้อม คิว และคนแน่น) ให้ยึดตัวเลขนี้` : ''} · ${next.title} เริ่มในอีก ${mins} นาที<br><b>${slack < 0 ? `น่าจะถึงหลังเริ่มราว ${-slack} นาทีขึ้นไป` : tight ? 'ควรออกเดี๋ยวนี้ ถ้าคนแน่นอาจพลาดช่วงต้น' : slack >= 15 ? `มีเวลาเหลือราว ${slack} นาที` : 'ควรออกเดินเดี๋ยวนี้'}</b></div>`;
+        } else {
+          let s = `ถึง <b>${L.n}</b> ราว ${dtxt(d)} (เส้นตรง) ไกลเกินเดิน`;
+          if (rt) { const lv = rt.leave ? Math.round((ts(next._d.date, rt.leave) - t) / 60000) : null; s += ` · เส้นทางในแพลนใช้ ${rt.total}` + (lv != null ? ` · ${lv > 0 ? `ควรออกในอีก ${lv} นาที (${rt.leave})` : `<b>เลยเวลาออก ${rt.leave} มาแล้ว ${-lv} นาที</b>`}` : ''); }
+          h += `<div class="${rt && rt.leave && ts(next._d.date, rt.leave) < t ? 'warn diff' : 'off'}">${s}</div>`;
+        }
+      }
+    }
+    h += `<p class="mut">เวลาเดินคิดจากระยะเส้นตรง ×1.4 ที่ความเร็วเดินปกติ ไม่ได้นับรั้ว ทางลอด คิวตรวจกระเป๋า หรือคนแน่น ในสนามจริงมักนานกว่านี้ ไม่รับประกันว่าทัน</p>`;
+  }
+  return h + `<div class="row">${act('geo', '', '🔄 อัปเดตตำแหน่ง', 'sm')}${act('geooff', '', 'ปิดการใช้ตำแหน่ง', 'sm')}</div></div>`;
+}
+function drawGeo() { const e = document.getElementById('geo'); if (e) e.innerHTML = geoHtml(); }
+
 /* ---------- หน้า ตอนนี้ / ถัดไป ---------- */
 function renderNow() {
   const t = now();
@@ -106,12 +159,13 @@ function renderNow() {
         ${nextSpot ? act('spot', nextSpot.spot, '👀 ดูมุมวิว') : ''}
       </div></div>` : ''}
     <div class="row">${act('sheet', 'ret', '🏨 กลับโรงแรม')}${next ? act('goplan', next.id, '🗓️ แพลนทั้งวัน') : act('page', 'plan', '🗓️ แพลนทั้งวัน')}</div>
+    <div id="geo">${geoHtml()}</div>
     <details><summary>ทดลองเลือกวัน/เวลา</summary>
       <div class="row">${[['2026-10-09T19:05', 'ศ. 19:05'], ['2026-10-10T14:20', 'ส. 14:20'], ['2026-10-10T20:45', 'ส. 20:45'], ['2026-10-11T21:30', 'อา. 21:30'], ['2026-10-12T13:00', 'จ. 13:00']].map(p => act('sim', p[0], p[1], 'sm')).join('')}</div>
       <label>วันและเวลา (เวลาสิงคโปร์)</label><input type="datetime-local" id="simdt" value="${sgDate(t)}T${hm(t)}">
       <div class="row" style="margin-top:8px">${act('simset', '', 'ใช้เวลานี้', 'sm')}${act('simreset', '', 'กลับเวลาจริง', 'sm')}</div>
     </details>
-    <p class="mut">เว็บนี้ไม่รู้ตำแหน่งจริงของคุณ หน้านี้คิดจากเวลาในแพลนเท่านั้น</p>
+    <p class="mut">การ์ด “ตอนนี้ / ถัดไป” คิดจากเวลาในแพลน ส่วนตำแหน่งจะอ่านก็ต่อเมื่อคุณกดอนุญาตเท่านั้น</p>
     <p class="mut" id="offl"></p>`;
   offlineLine();
 }
@@ -137,7 +191,7 @@ function imgBox(sp) {
       onerror="this.style.display='none';this.previousElementSibling.innerHTML='🖼️ โหลดภาพไม่ได้ (อาจไม่มีสัญญาณ หรือเว็บต้นทางไม่อนุญาต)<br><b>วิวที่เห็น:</b> ${esc(i.cap)}'">
     </div>
     <div class="mut">📷 ภาพปี ${i.year} · เครดิต ${i.credit} · ${i.cap} <b>ไม่ใช่ภาพปี 2026</b></div>
-    <div class="row" style="margin-top:6px">${ext(i.url, 'เปิดภาพต้นฉบับ ↗', 'sm')}</div>`;
+    <div class="row" style="margin-top:6px">${i.page ? ext(i.page, i.pageLabel || 'เปิดโพสต์ต้นฉบับ ↗', 'sm pri') : ''}${ext(i.url, 'เปิดภาพต้นฉบับ ↗', 'sm')}</div>`;
 }
 let idb;
 const db = () => idb || (idb = new Promise((res, rej) => { const r = indexedDB.open('f1sg', 1); r.onupgradeneeded = () => r.result.createObjectStore('photos', { keyPath: 'id', autoIncrement: true }); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }));
@@ -332,6 +386,8 @@ document.addEventListener('click', async ev => {
   else if (a === 'page') go(v);
   else if (a === 'goplan') { S.day = byId[v]._d.id; go('plan'); scrollToEl('c-' + v); }
   else if (a === 'sheet') sheet(v);
+  else if (a === 'geo') { S.geoOn = true; save(); startGeo(); }
+  else if (a === 'geooff') stopGeo();
   else if (a === 'spot') { closeSheet(); fz = 0; fm = ''; go('spots'); scrollToEl('s-' + v); }
   else if (a === 'pin') { closeSheet(); if (page === 'map' && b.classList.contains('pin')) { selPin = v; const mw = $('#mw'), x = mw.scrollLeft, y = mw.scrollTop, wy = window.scrollY; renderMap(); $('#mw').scrollLeft = x; $('#mw').scrollTop = y; window.scrollTo(0, wy); } else focusPin(v); }
   else if (a === 'zoom') { $('#lb img').src = v; $('#lb').classList.add('on'); }
@@ -362,6 +418,7 @@ document.addEventListener('change', async ev => {
 });
 
 go('now');
+if (S.geoOn) startGeo();
 setInterval(() => { if (page === 'now' && !$('details[open]', $('#p-now')) && !$('#sheet').classList.contains('on')) renderNow(); }, 30000);
 window.addEventListener('online', offlineLine); window.addEventListener('offline', offlineLine);
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js').then(() => navigator.serviceWorker.ready).then(() => setTimeout(offlineLine, 800)); navigator.serviceWorker.addEventListener('controllerchange', offlineLine); }
