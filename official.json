@@ -1,8 +1,8 @@
 {
- "checked": "2026-10-11T07:17:49.193Z",
+ "checked": "2026-10-11T14:10:42.630Z",
  "ok": {
   "ent": true,
-  "f1": true
+  "f1": false
  },
  "ev": {
   "d1-cortis": {
@@ -86,7 +86,8 @@
  },
  "rem": [
   "d2-sprint",
-  "d3-porsche"
+  "d3-porsche",
+  "d3-lana"
  ],
  "log": [
   {
